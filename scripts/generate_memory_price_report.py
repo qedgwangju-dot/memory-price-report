@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -28,6 +29,7 @@ DELAYED_OR_CONFLICT = "지연/불일치 있음"
 VERIFIED = "확인"
 STALE_REFERENCE_DAYS = 45
 REQUEST_TIMEOUT_SECONDS = 15
+REQUEST_RETRIES = 2
 
 DRAMEXCHANGE_HOME = "https://www.dramexchange.com/"
 DRAMEXCHANGE_HOME_PRICE = "https://www.dramexchange.com/Home/HomePrice"
@@ -193,9 +195,18 @@ def safe_get(
     params: dict[str, Any] | None = None,
     headers: dict[str, str] | None = None,
 ) -> requests.Response:
-    response = SESSION.get(url, params=params, headers=headers, timeout=REQUEST_TIMEOUT_SECONDS)
-    response.raise_for_status()
-    return response
+    last_error: Exception | None = None
+    for attempt in range(REQUEST_RETRIES + 1):
+        try:
+            response = SESSION.get(url, params=params, headers=headers, timeout=REQUEST_TIMEOUT_SECONDS)
+            response.raise_for_status()
+            return response
+        except requests.RequestException as exc:
+            last_error = exc
+            if attempt < REQUEST_RETRIES:
+                time.sleep(1.5 * (attempt + 1))
+    assert last_error is not None
+    raise last_error
 
 
 def query_usdkrw() -> ExchangeRate:
@@ -468,8 +479,8 @@ def build_records(rate: ExchangeRate) -> list[ReportRecord]:
 
     records = [
         record_from_row("DDR3 칩", "DRAM", find_row(dram_rows, "DDR3"), rate, "전일"),
-        record_from_row("DDR4 칩", "DRAM", find_row(dram_rows, "DDR4", "3200"), rate, "전일"),
-        record_from_row("DDR5 칩", "DRAM", find_row(dram_rows, "DDR5", "4800"), rate, "전일"),
+        record_from_row("DDR4 칩", "DRAM", find_row(dram_rows, "DDR4", "2Gx8", "3200"), rate, "전일"),
+        record_from_row("DDR5 칩", "DRAM", find_row(dram_rows, "DDR5", "2Gx8", "4800"), rate, "전일"),
         record_from_row("DDR4 모듈", "DRAM", find_row(module_rows, "DDR4", "UDIMM", "16GB", "3200"), rate, "전주"),
         record_from_row("DDR5 모듈", "DRAM", find_row(module_rows, "DDR5", "UDIMM", "16GB"), rate, "전주"),
         record_from_home_price(
@@ -592,7 +603,7 @@ def add_prior_from_row(
 ) -> None:
     if row is None:
         return
-    values[label] = PriorYearValue(row.value, "USD", source, source_url, reference)
+    values[label] = PriorYearValue(row.value, "USD", source, source_url, f"{reference}, 항목 {row.item}")
 
 
 def fetch_prior_year_dramexchange_spot(prior_date: date) -> dict[str, PriorYearValue]:
@@ -612,8 +623,8 @@ def fetch_prior_year_dramexchange_spot(prior_date: date) -> dict[str, PriorYearV
         reference = f"캡처 {wayback_kst(capture['timestamp'])}, 원문 Last Update 별도 없음"
         values: dict[str, PriorYearValue] = {}
         add_prior_from_row(values, "DDR3 칩", find_row(dram_rows, "DDR3"), source, archive_url, reference)
-        add_prior_from_row(values, "DDR4 칩", find_row(dram_rows, "DDR4", "3200"), source, archive_url, reference)
-        add_prior_from_row(values, "DDR5 칩", find_row(dram_rows, "DDR5", "4800"), source, archive_url, reference)
+        add_prior_from_row(values, "DDR4 칩", find_row(dram_rows, "DDR4", "2Gx8", "3200"), source, archive_url, reference)
+        add_prior_from_row(values, "DDR5 칩", find_row(dram_rows, "DDR5", "2Gx8", "4800"), source, archive_url, reference)
         add_prior_from_row(values, "DDR4 모듈", find_row(module_rows, "DDR4", "UDIMM", "16GB", "3200"), source, archive_url, reference)
         add_prior_from_row(values, "DDR5 모듈", find_row(module_rows, "DDR5", "UDIMM", "16GB"), source, archive_url, reference)
         add_prior_from_row(values, "NAND 웨이퍼", find_row(flash_rows, "TLC", "512Gb"), source, archive_url, reference)
@@ -1001,6 +1012,11 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
         candidates.sort(key=lambda record: abs(record.yoy_pct or 0), reverse=True)
         return [compact_label(record.label) for record in candidates[:limit]]
 
+    def short_term_falling_items(limit: int) -> list[str]:
+        candidates = [record for record in records if record.change_pct is not None and record.change_pct < 0]
+        candidates.sort(key=lambda record: record.change_pct or 0)
+        return [compact_label(record.label) for record in candidates[:limit]]
+
     summaries = summarize(records)
     priorities = [
         "DDR3 칩",
@@ -1045,9 +1061,9 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
         "boxes": [box("DRAM", "DRAM"), box("NAND/SSD", "NAND/SSD"), box("소매", "소매")],
         "rows": rows,
         "chips": {
-            "상승": card_change_items("강함", 3),
-            "하락": card_change_items("약함", 3),
-            "YoY": ["전년 직접치 확인"] if any(image_verified_yoy(record) for record in records) else ["전년 직접치 부족"],
+            "YoY 상승": card_change_items("강함", 3),
+            "YoY 하락": card_change_items("약함", 3),
+            "단기 하락": short_term_falling_items(4),
             "보류": [compact_label(record.label) for record in records if not image_verified_yoy(record)][:4],
         },
         "conclusion": conclusion,
@@ -1224,18 +1240,18 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
     y += 24
 
     chips = card.get("chips") or {}
-    chip_labels = ["상승", "하락", "YoY", "보류"]
+    chip_labels = ["YoY 상승", "YoY 하락", "단기 하락", "보류"]
     chip_w = (width - margin * 2 - 24) // 2
     chip_h = 110
     for i, label in enumerate(chip_labels):
         x = margin + (i % 2) * (chip_w + 24)
         cy = y + (i // 2) * (chip_h + 20)
         color, bg = status_color(label)
-        if label == "YoY":
-            color, bg = "#175CD3", "#EFF8FF"
         draw.rounded_rectangle((x, cy, x + chip_w, cy + chip_h), radius=18, fill=bg, outline=color, width=2)
         draw.text((x + 22, cy + 18), label, font=chip_font, fill=color)
-        draw_wrapped(draw, (x + 120, cy + 18), list_text(chips.get(label), limit=4), meta_font, "#344054", chip_w - 145, line_gap=2)
+        label_width = draw.textbbox((0, 0), label, font=chip_font)[2]
+        list_x = x + 22 + label_width + 28
+        draw_wrapped(draw, (list_x, cy + 18), list_text(chips.get(label), limit=4), meta_font, "#344054", x + chip_w - list_x - 22, line_gap=2)
     y += chip_h * 2 + 70
 
     conclusion = card.get("conclusion") or "직접 확인 가능한 핵심값 기준으로 판단한다."
