@@ -519,6 +519,17 @@ def compact_label(label: str) -> str:
     return replacements.get(base, base)
 
 
+def compact_source(record: ReportRecord) -> str:
+    source_text = record.query_source.lower()
+    if "danawa" in source_text:
+        return "Danawa"
+    if "yahoo" in source_text:
+        return "Yahoo"
+    if "dramexchange" in source_text:
+        return "DX"
+    return "출처"
+
+
 def best_label(records: list[ReportRecord], reverse: bool) -> str:
     comparable = [record for record in records if record.change_pct is not None and record.month != UNAVAILABLE]
     if not comparable:
@@ -549,7 +560,7 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
     def card_change_items(verdict: str, limit: int) -> list[str]:
         candidates = [record for record in records if record.verdict == verdict and record.change_pct is not None]
         candidates.sort(key=lambda record: abs(record.change_pct or 0), reverse=True)
-        return [f"{compact_label(record.label)} {pct_text(record.change_pct)}" for record in candidates[:limit]]
+        return [compact_label(record.label) for record in candidates[:limit]]
 
     summaries = summarize(records)
     priorities = [
@@ -574,13 +585,15 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
                 "item": wanted,
                 "basis": record.basis,
                 "change": pct_text(record.change_pct) if record.change_pct is not None else UNAVAILABLE,
+                "source_status": f"{compact_source(record)} · {record.certainty_status}",
                 "verdict": f"{symbol}{record.verdict if record.verdict != '판단 보류' else '보류'}",
             }
         )
         if len(rows) >= 8:
             break
 
-    rate_text = f"환율 {UNAVAILABLE}" if rate.value is None else f"USD/KRW {rate.value:,.2f}"
+    rate_status = rate.status if rate.value is None else VERIFIED
+    rate_text = f"환율 {UNAVAILABLE} · Yahoo · {rate_status}" if rate.value is None else f"USD/KRW {rate.value:,.2f} · Yahoo · {rate_status}"
     return {
         "title": "오늘 메모리·저장장치 추세판",
         "meta": f"기준일 {TODAY} · 조회 {QUERY_TIME} · {rate_text}",
@@ -704,7 +717,7 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
     y += 48
     header_h = 56
     draw.rounded_rectangle((margin, y, width - margin, y + header_h), radius=14, fill="#111827")
-    headers = [("항목", 0), ("기준", 430), ("변화율", 650), ("판정", 920)]
+    headers = [("항목", 0), ("기준", 360), ("변화율", 535), ("출처·상태", 740), ("판정", 1030)]
     for label, offset in headers:
         draw.text((margin + 24 + offset, y + 14), label, font=chip_font, fill="#FFFFFF")
     y += header_h
@@ -715,11 +728,12 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
         bg = "#FFFFFF" if idx % 2 == 0 else "#F9FAFB"
         draw.rectangle((margin, y, width - margin, y + row_h), fill=bg)
         draw.text((margin + 24, y + 18), str(row.get("item") or "-")[:24], font=table_font, fill="#111827")
-        draw.text((margin + 454, y + 18), str(row.get("basis") or "-")[:10], font=table_font, fill="#475467")
-        draw.text((margin + 674, y + 18), str(row.get("change") or "-")[:18], font=table_font, fill="#111827")
+        draw.text((margin + 384, y + 18), str(row.get("basis") or "-")[:10], font=table_font, fill="#475467")
+        draw.text((margin + 559, y + 18), str(row.get("change") or "-")[:18], font=table_font, fill="#111827")
+        draw.text((margin + 764, y + 18), str(row.get("source_status") or "-")[:18], font=meta_font, fill="#475467")
         verdict = str(row.get("verdict") or "보류")
         color, _ = status_color(verdict)
-        draw.text((margin + 944, y + 18), verdict[:16], font=table_bold_font, fill=color)
+        draw.text((margin + 1054, y + 18), verdict[:16], font=table_bold_font, fill=color)
         y += row_h
     y += 34
 
