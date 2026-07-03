@@ -34,9 +34,6 @@ jobs:
           pip install -r requirements.txt
 
       - name: Generate report
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: gpt-5.5
         run: python scripts/generate_memory_price_report.py
 
       - name: Upload report artifact

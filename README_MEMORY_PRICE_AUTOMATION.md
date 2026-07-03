@@ -1,6 +1,8 @@
 # 메모리 가격 보고서 자동화
 
-이 폴더는 `메모리 가격 보고서`를 Codex가 꺼져 있어도 실행되도록 GitHub Actions용으로 구성한 패키지입니다.
+이 저장소는 `메모리 가격 보고서`를 매일 오전 6:30 KST에 GitHub Actions로 생성합니다.
+
+OpenAI API를 사용하지 않습니다. 스크립트가 직접 접근 가능한 웹/API만 조회하고, 접근이 막히거나 기준값이 부족한 항목은 숫자를 채우지 않고 `직접 확인 실패` 또는 `직접치 부족`으로 표시합니다.
 
 ## 작동 방식
 
@@ -10,15 +12,14 @@
 - 이미지 요약판: `reports/memory_price_summary_YYYY-MM-DD.png`
 - 수동 실행: GitHub Actions 화면에서 `Memory price report` 워크플로우의 `Run workflow`
 
-## GitHub에서 필요한 설정
+## 주요 직접 조회 소스
 
-1. 이 폴더 내용을 GitHub 저장소에 올립니다.
-2. 저장소 `Settings > Secrets and variables > Actions > New repository secret`로 이동합니다.
-3. 이름은 `OPENAI_API_KEY`, 값은 OpenAI API 키를 넣습니다.
-4. 저장소 `Actions` 탭에서 워크플로우가 활성화되어 있는지 확인합니다.
+- USD/KRW: Yahoo Finance `USDKRW=X`
+- DRAM/NAND/SSD 공개 가격: DRAMeXchange 홈페이지와 공개 `HomePrice` JSON
+- 소매 가격: Danawa `prod.danawa.com` 가격비교 상품 페이지
 
-## 현재 상태
+## 기준
 
-일반 PowerShell PATH에서는 `git` 명령이 잡히지 않지만, Codex 번들 git으로 로컬 저장소 초기화와 커밋은 가능합니다. GitHub 원격 저장소만 연결하면 push할 수 있습니다.
-
-기존 GitHub 저장소 이름을 `owner/repo` 형식으로 알려주면, GitHub 커넥터로 이 파일들을 저장소에 바로 올릴 수 있습니다.
+- 모델 기억, 과거 보고서, 검색 스니펫, 추정값, 보간값은 사용하지 않습니다.
+- 같은 출처에서 직접 확인되지 않은 비교값은 계산하지 않습니다.
+- OpenAI API 키나 GitHub Secret은 필요 없습니다.

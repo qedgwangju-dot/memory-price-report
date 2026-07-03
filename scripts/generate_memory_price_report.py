@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import json
-import os
 import re
-import textwrap
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
-from openai import OpenAI
+import requests
+from bs4 import BeautifulSoup
 from PIL import Image, ImageDraw, ImageFont
 
 
@@ -20,130 +21,548 @@ KST = ZoneInfo("Asia/Seoul")
 TODAY = datetime.now(KST).strftime("%Y-%m-%d")
 QUERY_TIME = datetime.now(KST).strftime("%Y-%m-%d %H:%M KST")
 
+DRAMEXCHANGE_HOME = "https://www.dramexchange.com/"
+DRAMEXCHANGE_HOME_PRICE = "https://www.dramexchange.com/Home/HomePrice"
+YAHOO_USDKRW = "https://query1.finance.yahoo.com/v8/finance/chart/USDKRW=X?range=5d&interval=1d"
 
-REPORT_PROMPT = f"""
-오늘자 메모리·저장장치 가격 보고서를 한국어로 작성하라. 실행 기준일은 {TODAY}, 조회 기준 시각은 {QUERY_TIME}이다.
-형식은 반드시 '짧은 텍스트 보고 + 마지막 고품질 이미지형 요약판'이다. 장황한 설명, 자료 처리 현황표, 외화 검산표, 관련 기업 지도, 공정 병목표, 긴 기업분석은 넣지 않는다.
-
-최신값 절대 규칙: 최신성이 필요한 값은 모델 기억, 과거 대화, 이전 보고서, 검색 스니펫, 캐시, 추정, 평균 추정, 보간값, 유사 상품 가격으로 답하지 말라. 반드시 현재 접근 가능한 공식·신뢰 소스(웹/API/파일/DB 등)를 직접 열어 조회한 뒤 반영하라. 각 최신값에는 조회 시각(KST), 출처, 원문 Last Update가 있으면 Last Update를 함께 표시하라. 조회 실패, 지연 데이터, 출처 간 불일치, 접근 제한이 있으면 값을 추정하거나 재사용하지 말고 '확인 불가', '직접 확인 실패', '직접치 부족', '지연/불일치 있음' 중 하나로 표시하라. 직접 확인하지 못한 숫자는 절대 쓰지 말라.
-
-기준 환율: 최신 USD/KRW를 직접 조회하고 조회 시각(KST)과 출처를 표시한다. 달러 가격은 원화 환산을 병기한다. 환율 확인 실패 시 원화 환산하지 말고 '환율 직접치 부족'으로 표시한다.
-
-필수 확인 항목:
-- 상류 DRAM: DDR3 칩, DDR4 칩, DDR5 칩, DDR4 모듈, DDR5 모듈, DRAM 계약가를 분리한다. DDR3 칩은 TrendForce/DRAMeXchange 공개 표에서 확인 가능한 대표 DDR3 칩 현물가를 사용한다. DDR4 칩은 DDR4 1Gx8 3200MT/s 또는 공개 표 대표 DDR4 칩 현물가를 사용한다. DDR5 칩은 DDR5 16G(2Gx8) 4800/5600을 사용한다. DDR4 모듈은 DDR4 UDIMM 16GB 3200, DDR5 모듈은 DDR5 UDIMM 16GB 4800/5600을 사용한다. DRAM 계약가는 PC DRAM contract price 공개값을 사용한다. 칩, 모듈, 계약가를 합치지 않는다.
-- 상류 NAND/SSD: 512Gb TLC 웨이퍼 현물가, NAND 계약가 공개값, PC-client OEM SSD 1TB 계약가, Samsung 990 PRO 1TB street price를 각각 확인한다. NAND 웨이퍼, NAND 계약가, OEM SSD 계약가, SSD street price를 합치지 않는다.
-- 소매: 삼성전자 DDR5-5600 32GB, Seagate BarraCuda 8TB, Samsung 990 PRO 1TB를 확인한다. Danawa는 prod.danawa.com 가격비교 페이지만 사용하고 shop.danawa.com, 회원가, 카드혜택가, 네이버포인트 차감가, 현금가는 섞지 않는다. canonical URL은 각각 https://prod.danawa.com/info/?pcode=20644043, https://prod.danawa.com/info/?pcode=5764992, https://prod.danawa.com/info/?pcode=18297002 이다.
-
-비교값 산출 규칙:
-- 현재값, 전일 기준값, 전주 기준값, 전월 기준값, 전년 기준값을 각각 확인한다.
-- 같은 항목·같은 단위·같은 출처 기준으로만 비교한다.
-- 값은 가능하면 '기준값 → 현재값, 변화율'로 쓴다.
-- 전년 기준값은 최신 데이터 유효일의 1년 전 같은 날짜를 우선 사용하고, 비거래일·미공개일이면 가장 가까운 직전 공개일을 쓰되 기준일을 명시한다.
-- 출처가 변화율만 제공하고 기준값을 공개하지 않으면 변화율만 쓰고 '기준값 미공개'라고 표시한다.
-- 동일 기준값을 직접 확인하지 못하면 임의 계산하지 말고 '직접치 부족'으로 표시한다.
-- 추세는 전월 대비를 최우선으로 판단하고, 전년 대비는 구조적 사이클 방향으로 따로 표시한다. 전월값이 없고 전년값만 있으면 '전년 기준 장기 상승/장기 하락/장기 보합'으로 쓴다. 전월·전년이 없고 전주값이 있으면 전주 기준, 전월·전년·전주가 없고 전일만 있으면 전일 단기 기준으로만 쓴다.
-
-출력 구조는 반드시 아래 6개 블록만 사용한다.
-1) 기준 환율 1줄.
-2) 오늘 한눈에 추세판: 표 열은 '구분 / 현재값 / 전일 / 전주 / 전월 / 전년 / 추세 / 판정'으로 고정한다. 필수 행은 DDR3 칩, DDR4 칩, DDR5 칩, DDR4 모듈, DDR5 모듈, DRAM 계약가, NAND 웨이퍼, NAND 계약가, PC-client OEM SSD 계약가, SSD street price, 소매 메모리, 소매 HDD, 소매 SSD다. 판정은 '강함', '약함', '보합', '판단 보류' 네 단어 중 하나만 쓴다.
-3) 상승·하락 요약 4줄: '상승:', '하락:', '전년:', '보류:' 네 줄만 쓴다.
-4) 가격표: 열은 '항목 / 현재값 / 조회 시각·출처 / 원문 Last Update / 전월 대비 / 전년 대비 / 추세'로 고정한다.
-5) 마지막 한 줄: '전월 기준으로 가장 강한 쪽은 ○○, 전년 기준으로 가장 구조적으로 강한 쪽은 ○○, 가장 약한 쪽은 ○○, DRAM은 ○○, NAND는 ○○.' 형식으로 한 줄만 쓴다.
-6) 마지막 이미지형 요약판: 보고서 본문에는 이미지형 카드의 핵심 텍스트만 넣어라. 스크립트가 별도 PNG 요약판을 생성해 보고서 마지막에 붙인다.
-
-마지막 이미지형 요약판 디자인 규칙:
-- 이전처럼 작은 글씨가 빽빽한 표를 만들지 않는다. 한 장 카드처럼 '큰 제목 → 핵심 판정 3개 → 미니 추세표 → 상승/하락/전년/보류 칩 → 한 줄 결론' 순서로 만든다.
-- 제목은 '오늘 메모리·저장장치 추세판'으로 한다.
-- 카드 상단에는 기준일, 조회시각, 환율을 작게 넣는다.
-- 카드 최상단 3개 핵심 박스에는 ① DRAM ② NAND/SSD ③ 소매를 넣고 각 박스에는 '상승/하락/보합/보류'와 적용 기준(전월·전년·전주·전일)만 크게 표시한다.
-- 중앙 미니 추세표는 최대 8행만 넣는다. 우선순위는 DDR4 칩, DDR5 칩, DRAM 계약가, NAND 웨이퍼, NAND 계약가, OEM SSD 계약가, SSD street price, 소매 메모리/SSD다. DDR3·소매 HDD 등은 공간이 부족하면 하단 보조칩에 넣는다.
-- 색상·기호는 상승=▲, 하락=▼, 보합=—, 전년 대비=YoY, 판단 보류=보류로 통일한다.
-- 숫자는 길게 쓰지 말고 항목명, 적용 기준, 변화율, 판정만 넣는다. 예: 'DDR4 칩 · 전월 +○% · ▲ 강함'.
-- 하단에는 '상승 / 하락 / YoY / 보류' 4개 칩 그룹을 넣는다.
-- 마지막 줄에는 결론 한 문장만 넣는다.
-- 가독성을 최우선으로 하며, 한 카드 안에 12개 이상의 항목을 억지로 넣지 않는다. 상세 숫자는 본문 표에 있고, 이미지는 핵심만 보여주는 용도다.
-""".strip()
-
-
-CARD_EXTRACTION_PROMPT = """
-아래 보고서에서 PNG 카드 생성에 필요한 정보만 추출하라. 새 숫자, 새 판단, 새 출처를 만들지 말고 보고서 안에 있는 내용만 사용하라.
-반드시 JSON 객체 하나만 출력하라. Markdown 코드펜스는 쓰지 마라.
-
-스키마:
-{
-  "title": "오늘 메모리·저장장치 추세판",
-  "meta": "기준일 ... · 조회 ... · 환율 ...",
-  "boxes": [
-    {"label": "DRAM", "status": "상승|하락|보합|보류", "basis": "전월|전년|전주|전일|직접치 부족"},
-    {"label": "NAND/SSD", "status": "상승|하락|보합|보류", "basis": "전월|전년|전주|전일|직접치 부족"},
-    {"label": "소매", "status": "상승|하락|보합|보류", "basis": "전월|전년|전주|전일|직접치 부족"}
-  ],
-  "rows": [
-    {"item": "DDR4 칩", "basis": "전월", "change": "+0.0% 또는 직접치 부족", "verdict": "▲ 강함|▼ 약함|— 보합|보류"}
-  ],
-  "chips": {
-    "상승": ["항목"],
-    "하락": ["항목"],
-    "YoY": ["항목"],
-    "보류": ["항목"]
-  },
-  "conclusion": "한 문장 결론"
+DANAWA_PRODUCTS = {
+    "소매 메모리": {
+        "name": "삼성전자 DDR5-5600 32GB",
+        "url": "https://prod.danawa.com/info/?pcode=20644043",
+    },
+    "소매 HDD": {
+        "name": "Seagate BarraCuda 8TB",
+        "url": "https://prod.danawa.com/info/?pcode=5764992",
+    },
+    "소매 SSD": {
+        "name": "Samsung 990 PRO 1TB",
+        "url": "https://prod.danawa.com/info/?pcode=18297002",
+    },
 }
 
-보고서:
-""".strip()
+SESSION = requests.Session()
+SESSION.headers.update(
+    {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/126.0 Safari/537.36"
+        ),
+        "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+    }
+)
 
 
-def call_openai(input_text: str, use_web_search: bool) -> str:
-    client = OpenAI()
-    tools = [{"type": "web_search"}] if use_web_search else None
-    response = client.responses.create(
-        model=os.getenv("OPENAI_MODEL", "gpt-5.5"),
-        input=input_text,
-        tools=tools,
-        max_output_tokens=12000,
-    )
-    text = getattr(response, "output_text", None)
-    if text:
-        return text.strip()
-    chunks: list[str] = []
-    for item in getattr(response, "output", []) or []:
-        for content in getattr(item, "content", []) or []:
-            value = getattr(content, "text", None)
-            if value:
-                chunks.append(value)
-    return "\n".join(chunks).strip()
+@dataclass
+class ExchangeRate:
+    value: float | None
+    source: str
+    source_url: str
+    query_time: str
+    last_update: str
+    status: str
+    change_pct: float | None = None
 
 
-def extract_json(text: str) -> dict:
-    match = re.search(r"\{.*\}", text, flags=re.DOTALL)
+@dataclass
+class SourceRow:
+    item: str
+    value: float
+    change_pct: float | None
+    source_url: str
+    last_update: str
+
+
+@dataclass
+class ReportRecord:
+    label: str
+    group: str
+    current: str
+    query_source: str
+    last_update: str
+    day: str
+    week: str
+    month: str
+    year: str
+    trend: str
+    verdict: str
+    basis: str
+    change_pct: float | None = None
+    source_url: str = ""
+
+
+def normalize_text(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def parse_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    match = re.search(r"-?\d+(?:,\d{3})*(?:\.\d+)?", str(value))
     if not match:
-        raise ValueError("JSON object was not found in model output.")
-    return json.loads(match.group(0))
+        return None
+    return float(match.group(0).replace(",", ""))
 
 
-def fallback_card_data(report_text: str) -> dict:
-    conclusion = ""
-    for line in reversed(report_text.splitlines()):
-        if line.strip():
-            conclusion = line.strip()
+def parse_pct(value: Any) -> float | None:
+    text = str(value or "")
+    match = re.search(r"[-+]?\d+(?:\.\d+)?\s*%", text)
+    if not match:
+        return None
+    return float(match.group(0).replace("%", "").replace(" ", ""))
+
+
+def pct_text(value: float | None) -> str:
+    if value is None:
+        return "직접치 부족"
+    return f"{value:+.2f}%"
+
+
+def fmt_krw(value: float) -> str:
+    return f"{round(value):,}원"
+
+
+def fmt_usd(value: float, rate: ExchangeRate) -> str:
+    base = f"${value:,.3f}"
+    if rate.value is None:
+        return f"{base} / 환율 직접치 부족"
+    return f"{base} (약 {fmt_krw(value * rate.value)})"
+
+
+def kst_from_timestamp(ts: int | str | float | None) -> str:
+    if ts in (None, ""):
+        return "원문 Last Update 별도 없음"
+    try:
+        return datetime.fromtimestamp(float(ts), timezone.utc).astimezone(KST).strftime("%Y-%m-%d %H:%M KST")
+    except Exception:
+        return "원문 Last Update 별도 없음"
+
+
+def classify(change_pct: float | None) -> tuple[str, str, str]:
+    if change_pct is None:
+        return "직접치 부족", "판단 보류", "보류"
+    if change_pct > 0.5:
+        return f"공개 변화율 {pct_text(change_pct)} 기준 상승", "강함", "상승"
+    if change_pct < -0.5:
+        return f"공개 변화율 {pct_text(change_pct)} 기준 하락", "약함", "하락"
+    return f"공개 변화율 {pct_text(change_pct)} 기준 보합", "보합", "보합"
+
+
+def safe_get(url: str, *, params: dict[str, Any] | None = None) -> requests.Response:
+    response = SESSION.get(url, params=params, timeout=25)
+    response.raise_for_status()
+    return response
+
+
+def query_usdkrw() -> ExchangeRate:
+    try:
+        data = safe_get(YAHOO_USDKRW).json()
+        result = data["chart"]["result"][0]
+        meta = result["meta"]
+        rate = float(meta["regularMarketPrice"])
+        prev = parse_float(meta.get("chartPreviousClose"))
+        change = ((rate / prev) - 1) * 100 if prev else None
+        return ExchangeRate(
+            value=rate,
+            source="Yahoo Finance USDKRW=X",
+            source_url="https://finance.yahoo.com/quote/USDKRW=X",
+            query_time=QUERY_TIME,
+            last_update=kst_from_timestamp(meta.get("regularMarketTime")),
+            status="직접 확인",
+            change_pct=change,
+        )
+    except Exception as exc:
+        return ExchangeRate(
+            value=None,
+            source="Yahoo Finance USDKRW=X",
+            source_url="https://finance.yahoo.com/quote/USDKRW=X",
+            query_time=QUERY_TIME,
+            last_update="직접 확인 실패",
+            status=f"환율 직접치 부족: {exc.__class__.__name__}",
+        )
+
+
+def fetch_dramexchange_home() -> BeautifulSoup | None:
+    try:
+        return BeautifulSoup(safe_get(DRAMEXCHANGE_HOME).text, "html.parser")
+    except Exception:
+        return None
+
+
+def parse_spot_table(soup: BeautifulSoup | None, table_id: str) -> list[SourceRow]:
+    if soup is None:
+        return []
+    tbody = soup.find("tbody", id=table_id)
+    if tbody is None:
+        return []
+
+    rows: list[SourceRow] = []
+    for tr in tbody.find_all("tr"):
+        cells = tr.find_all("td")
+        if len(cells) < 7:
+            continue
+        item = normalize_text(cells[0].get_text(" ", strip=True))
+        if not item or item.lower() == "item":
+            continue
+        value = parse_float(cells[5].get_text(" ", strip=True))
+        if value is None:
+            continue
+        change = parse_pct(cells[6].get_text(" ", strip=True))
+        link = cells[0].find("a", href=True)
+        href = link["href"] if link else ""
+        source_url = href if href.startswith("http") else f"https://www.dramexchange.com{href}"
+        rows.append(
+            SourceRow(
+                item=item,
+                value=value,
+                change_pct=change,
+                source_url=source_url,
+                last_update="홈 공개표, 원문 Last Update 별도 없음",
+            )
+        )
+    return rows
+
+
+def find_row(rows: list[SourceRow], *keywords: str) -> SourceRow | None:
+    lowered = [(row, row.item.lower()) for row in rows]
+    for row, item in lowered:
+        if all(keyword.lower() in item for keyword in keywords):
+            return row
+    return None
+
+
+def record_from_row(label: str, group: str, row: SourceRow | None, rate: ExchangeRate, basis: str) -> ReportRecord:
+    if row is None:
+        return unavailable_record(label, group, "DRAMeXchange 공개표", DRAMEXCHANGE_HOME, "직접 확인 실패")
+
+    trend, verdict, _ = classify(row.change_pct)
+    current = fmt_usd(row.value, rate)
+    change = f"공개 변화율 {pct_text(row.change_pct)}" if row.change_pct is not None else "직접치 부족"
+    return ReportRecord(
+        label=label,
+        group=group,
+        current=current,
+        query_source=f"{QUERY_TIME} · DRAMeXchange 공개표",
+        last_update=row.last_update,
+        day=change if basis == "전일" else "직접치 부족",
+        week=change if basis == "전주" else "직접치 부족",
+        month=change if basis == "전월" else "직접치 부족",
+        year="직접치 부족",
+        trend=trend,
+        verdict=verdict,
+        basis=basis,
+        change_pct=row.change_pct,
+        source_url=row.source_url,
+    )
+
+
+def fetch_home_price(source: str) -> list[dict[str, Any]]:
+    try:
+        data = safe_get(DRAMEXCHANGE_HOME_PRICE, params={"Source": source}).json()
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def find_dict(rows: list[dict[str, Any]], field: str, *keywords: str) -> dict[str, Any] | None:
+    for row in rows:
+        value = str(row.get(field) or "").lower()
+        if all(keyword.lower() in value for keyword in keywords):
+            return row
+    return rows[0] if rows else None
+
+
+def record_from_home_price(
+    label: str,
+    group: str,
+    row: dict[str, Any] | None,
+    rate: ExchangeRate,
+    source_name: str,
+    source_url: str,
+) -> ReportRecord:
+    if row is None:
+        return unavailable_record(label, group, source_name, source_url, "직접 확인 실패")
+
+    value = parse_float(row.get("show_avg", row.get("avg")))
+    if value is None:
+        return unavailable_record(label, group, source_name, source_url, "직접치 부족")
+
+    change = parse_float(row.get("show_avg_change", row.get("change")))
+    name = str(row.get("show_name") or row.get("Name") or row.get("Series") or label)
+    last_update = row.get("show_day") or row.get("slotTime") or kst_from_timestamp(row.get("updateTime"))
+    if isinstance(last_update, str) and "T" in last_update:
+        last_update = last_update.replace("T", " ")
+
+    trend, verdict, _ = classify(change)
+    current = fmt_usd(value, rate)
+    change_text = f"공개 변화율 {pct_text(change)}, 기준값 미공개" if change is not None else "직접치 부족"
+    return ReportRecord(
+        label=f"{label} ({name})" if name and name != label else label,
+        group=group,
+        current=current,
+        query_source=f"{QUERY_TIME} · {source_name}",
+        last_update=str(last_update or "원문 Last Update 별도 없음"),
+        day="직접치 부족",
+        week="직접치 부족",
+        month=change_text,
+        year="직접치 부족",
+        trend=trend,
+        verdict=verdict,
+        basis="전월",
+        change_pct=change,
+        source_url=source_url,
+    )
+
+
+def parse_danawa_price(html: str) -> float | None:
+    soup = BeautifulSoup(html, "html.parser")
+    for script in soup.find_all("script", {"type": "application/ld+json"}):
+        try:
+            data = json.loads(script.string or "")
+        except Exception:
+            continue
+        offers = data.get("offers") if isinstance(data, dict) else None
+        if isinstance(offers, dict):
+            low_price = parse_float(offers.get("lowPrice"))
+            if low_price is not None:
+                return low_price
+
+    patterns = [
+        r'nMinPrice"\s*:\s*"([0-9,]+)"',
+        r"nMinPrice:\s*\"([0-9,]+)\"",
+        r'"lowPrice"\s*:\s*"?([0-9,]+)"?',
+        r"최저가\s*([0-9,]+)원",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, html)
+        if match:
+            return parse_float(match.group(1))
+    return None
+
+
+def fetch_danawa_record(label: str, product: dict[str, str]) -> ReportRecord:
+    url = product["url"]
+    source_name = f"Danawa prod 가격비교 · {product['name']}"
+    try:
+        html = safe_get(url).text
+        price = parse_danawa_price(html)
+        if price is None:
+            return unavailable_record(label, "소매", source_name, url, "직접치 부족")
+        return ReportRecord(
+            label=f"{label} ({product['name']})",
+            group="소매",
+            current=fmt_krw(price),
+            query_source=f"{QUERY_TIME} · {source_name}",
+            last_update="상품 페이지 직접 조회, 원문 Last Update 별도 없음",
+            day="직접치 부족",
+            week="직접치 부족",
+            month="직접치 부족",
+            year="직접치 부족",
+            trend="비교 기준값 직접치 부족",
+            verdict="판단 보류",
+            basis="직접치 부족",
+            source_url=url,
+        )
+    except Exception as exc:
+        return unavailable_record(label, "소매", source_name, url, f"직접 확인 실패: {exc.__class__.__name__}")
+
+
+def unavailable_record(label: str, group: str, source: str, source_url: str, reason: str) -> ReportRecord:
+    return ReportRecord(
+        label=label,
+        group=group,
+        current=reason,
+        query_source=f"{QUERY_TIME} · {source}",
+        last_update=reason,
+        day="직접치 부족",
+        week="직접치 부족",
+        month="직접치 부족",
+        year="직접치 부족",
+        trend=reason,
+        verdict="판단 보류",
+        basis="직접치 부족",
+        source_url=source_url,
+    )
+
+
+def build_records(rate: ExchangeRate) -> list[ReportRecord]:
+    soup = fetch_dramexchange_home()
+    dram_rows = parse_spot_table(soup, "tb_NationalDramSpotPrice")
+    flash_rows = parse_spot_table(soup, "tb_NationalFlashSpotPrice")
+    module_rows = parse_spot_table(soup, "tb_ModuleSpotPrice")
+
+    dram_contract = fetch_home_price("NationalDramContract")
+    flash_contract = fetch_home_price("NationalFlashContract")
+    pcc_contract = fetch_home_price("PCC")
+    ssd_street = fetch_home_price("SSD")
+
+    records = [
+        record_from_row("DDR3 칩", "DRAM", find_row(dram_rows, "DDR3"), rate, "전일"),
+        record_from_row("DDR4 칩", "DRAM", find_row(dram_rows, "DDR4", "3200"), rate, "전일"),
+        record_from_row("DDR5 칩", "DRAM", find_row(dram_rows, "DDR5", "4800"), rate, "전일"),
+        record_from_row("DDR4 모듈", "DRAM", find_row(module_rows, "DDR4", "UDIMM", "16GB", "3200"), rate, "전주"),
+        record_from_row("DDR5 모듈", "DRAM", find_row(module_rows, "DDR5", "UDIMM", "16GB"), rate, "전주"),
+        record_from_home_price(
+            "DRAM 계약가",
+            "DRAM",
+            find_dict(dram_contract, "show_name", "DDR4", "8Gb"),
+            rate,
+            "DRAMeXchange HomePrice NationalDramContract",
+            "https://www.dramexchange.com/Price/NationalContractDramDetail",
+        ),
+        record_from_row("NAND 웨이퍼", "NAND/SSD", find_row(flash_rows, "TLC", "512Gb"), rate, "전일"),
+        record_from_home_price(
+            "NAND 계약가",
+            "NAND/SSD",
+            find_dict(flash_contract, "show_name", "NAND"),
+            rate,
+            "DRAMeXchange HomePrice NationalFlashContract",
+            "https://www.dramexchange.com/Price/NationalContractFlashDetail",
+        ),
+        record_from_home_price(
+            "PC-client OEM SSD 계약가",
+            "NAND/SSD",
+            find_dict(pcc_contract, "Name", "1TB"),
+            rate,
+            "DRAMeXchange HomePrice PCC",
+            "https://www.dramexchange.com/Price/PCClientOEMSSD",
+        ),
+        record_from_home_price(
+            "SSD street price",
+            "NAND/SSD",
+            find_dict(ssd_street, "Series", "990", "pro"),
+            rate,
+            "DRAMeXchange HomePrice SSD",
+            "https://www.dramexchange.com/Price/SSD_Street",
+        ),
+    ]
+    records.extend(fetch_danawa_record(label, product) for label, product in DANAWA_PRODUCTS.items())
+    return records
+
+
+def format_source(record: ReportRecord) -> str:
+    if record.source_url:
+        return f"{record.query_source} ({record.source_url})"
+    return record.query_source
+
+
+def summarize(records: list[ReportRecord]) -> dict[str, list[str]]:
+    rising: list[str] = []
+    falling: list[str] = []
+    pending: list[str] = []
+    yoy: list[str] = []
+    for record in records:
+        base_label = record.label.split(" (", 1)[0]
+        if record.verdict == "강함":
+            rising.append(f"{base_label} {pct_text(record.change_pct)}")
+        elif record.verdict == "약함":
+            falling.append(f"{base_label} {pct_text(record.change_pct)}")
+        elif record.verdict == "판단 보류":
+            pending.append(base_label)
+        if record.year == "직접치 부족":
+            yoy.append(base_label)
+    return {
+        "상승": rising,
+        "하락": falling,
+        "YoY": yoy,
+        "보류": pending,
+    }
+
+
+def compact_label(label: str) -> str:
+    base = label.split(" (", 1)[0]
+    replacements = {
+        "DDR3 칩": "DDR3",
+        "DDR4 칩": "DDR4",
+        "DDR5 칩": "DDR5",
+        "DDR4 모듈": "DDR4 모듈",
+        "DDR5 모듈": "DDR5 모듈",
+        "PC-client OEM SSD 계약가": "OEM SSD",
+        "SSD street price": "SSD street",
+        "DRAM 계약가": "DRAM 계약",
+        "NAND 계약가": "NAND",
+        "NAND 웨이퍼": "NAND 웨이퍼",
+        "소매 메모리": "소매 메모리",
+        "소매 HDD": "소매 HDD",
+        "소매 SSD": "소매 SSD",
+    }
+    return replacements.get(base, base)
+
+
+def best_label(records: list[ReportRecord], reverse: bool) -> str:
+    comparable = [record for record in records if record.change_pct is not None and record.month != "직접치 부족"]
+    if not comparable:
+        return "직접치 부족"
+    chosen = max(comparable, key=lambda item: item.change_pct or 0) if reverse else min(comparable, key=lambda item: item.change_pct or 0)
+    return chosen.label.split(" (", 1)[0]
+
+
+def group_direction(records: list[ReportRecord], group: str) -> str:
+    values = [record.change_pct for record in records if record.group == group and record.change_pct is not None]
+    if not values:
+        return "판단 보류"
+    avg = sum(values) / len(values)
+    if avg > 0.5:
+        return "강함"
+    if avg < -0.5:
+        return "약함"
+    return "보합"
+
+
+def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion: str) -> dict[str, Any]:
+    def box(label: str, group: str) -> dict[str, str]:
+        direction = group_direction(records, group)
+        status = {"강함": "상승", "약함": "하락", "보합": "보합"}.get(direction, "보류")
+        basis = "공개 변화율" if status != "보류" else "직접치 부족"
+        return {"label": label, "status": status, "basis": basis}
+
+    def card_change_items(verdict: str, limit: int) -> list[str]:
+        candidates = [record for record in records if record.verdict == verdict and record.change_pct is not None]
+        candidates.sort(key=lambda record: abs(record.change_pct or 0), reverse=True)
+        return [f"{compact_label(record.label)} {pct_text(record.change_pct)}" for record in candidates[:limit]]
+
+    summaries = summarize(records)
+    priorities = [
+        "DDR4 칩",
+        "DDR5 칩",
+        "DRAM 계약가",
+        "NAND 웨이퍼",
+        "NAND 계약가",
+        "PC-client OEM SSD 계약가",
+        "SSD street price",
+        "소매 메모리",
+        "소매 SSD",
+    ]
+    rows = []
+    for wanted in priorities:
+        record = next((item for item in records if item.label.startswith(wanted)), None)
+        if record is None:
+            continue
+        symbol = "▲ " if record.verdict == "강함" else "▼ " if record.verdict == "약함" else "— " if record.verdict == "보합" else ""
+        rows.append(
+            {
+                "item": wanted,
+                "basis": record.basis,
+                "change": pct_text(record.change_pct) if record.change_pct is not None else "직접치 부족",
+                "verdict": f"{symbol}{record.verdict if record.verdict != '판단 보류' else '보류'}",
+            }
+        )
+        if len(rows) >= 8:
             break
+
+    rate_text = "환율 직접치 부족" if rate.value is None else f"USD/KRW {rate.value:,.2f}"
     return {
         "title": "오늘 메모리·저장장치 추세판",
-        "meta": f"기준일 {TODAY} · 조회 {QUERY_TIME}",
-        "boxes": [
-            {"label": "DRAM", "status": "보류", "basis": "직접치 부족"},
-            {"label": "NAND/SSD", "status": "보류", "basis": "직접치 부족"},
-            {"label": "소매", "status": "보류", "basis": "직접치 부족"},
-        ],
-        "rows": [
-            {"item": "DDR4 칩", "basis": "전월", "change": "직접치 부족", "verdict": "보류"},
-            {"item": "DDR5 칩", "basis": "전월", "change": "직접치 부족", "verdict": "보류"},
-            {"item": "DRAM 계약가", "basis": "전월", "change": "직접치 부족", "verdict": "보류"},
-            {"item": "NAND 웨이퍼", "basis": "전월", "change": "직접치 부족", "verdict": "보류"},
-        ],
-        "chips": {"상승": [], "하락": [], "YoY": [], "보류": ["직접치 부족"]},
-        "conclusion": conclusion or "직접 확인 가능한 핵심값이 부족해 판단 보류.",
+        "meta": f"기준일 {TODAY} · 조회 {QUERY_TIME} · {rate_text}",
+        "boxes": [box("DRAM", "DRAM"), box("NAND/SSD", "NAND/SSD"), box("소매", "소매")],
+        "rows": rows,
+        "chips": {
+            "상승": card_change_items("강함", 3),
+            "하락": card_change_items("약함", 3),
+            "YoY": ["전년 직접치 부족"],
+            "보류": [compact_label(item) for item in summaries["보류"][:4]],
+        },
+        "conclusion": conclusion,
     }
 
 
@@ -208,12 +627,12 @@ def status_color(status: str) -> tuple[str, str]:
 
 def list_text(values: object, limit: int = 4) -> str:
     if isinstance(values, list):
-        values = [str(v) for v in values if str(v).strip()]
-        return ", ".join(values[:limit]) if values else "-"
+        clean = [str(value) for value in values if str(value).strip()]
+        return ", ".join(clean[:limit]) if clean else "-"
     return str(values or "-")
 
 
-def create_card_png(card: dict, output_path: Path) -> None:
+def create_card_png(card: dict[str, Any], output_path: Path) -> None:
     width, height = 1400, 1700
     image = Image.new("RGB", (width, height), "#F6F7F9")
     draw = ImageDraw.Draw(image)
@@ -248,8 +667,7 @@ def create_card_png(card: dict, output_path: Path) -> None:
         draw.rounded_rectangle((x, y, x + box_w, y + box_h), radius=24, fill=bg, outline=color, width=2)
         draw.text((x + 28, y + 24), str(box.get("label") or "-"), font=box_label_font, fill="#344054")
         draw.text((x + 28, y + 72), status, font=box_status_font, fill=color)
-        basis = str(box.get("basis") or "직접치 부족")
-        draw.text((x + 28, y + 135), basis, font=meta_font, fill="#475467")
+        draw.text((x + 28, y + 135), str(box.get("basis") or "직접치 부족"), font=meta_font, fill="#475467")
     y += box_h + 44
 
     draw.text((margin, y), "미니 추세표", font=table_bold_font, fill="#111827")
@@ -287,8 +705,7 @@ def create_card_png(card: dict, output_path: Path) -> None:
             color, bg = "#175CD3", "#EFF8FF"
         draw.rounded_rectangle((x, cy, x + chip_w, cy + chip_h), radius=18, fill=bg, outline=color, width=2)
         draw.text((x + 22, cy + 18), label, font=chip_font, fill=color)
-        value = list_text(chips.get(label), limit=4)
-        draw_wrapped(draw, (x + 120, cy + 18), value, meta_font, "#344054", chip_w - 145, line_gap=2)
+        draw_wrapped(draw, (x + 120, cy + 18), list_text(chips.get(label), limit=4), meta_font, "#344054", chip_w - 145, line_gap=2)
     y += chip_h * 2 + 70
 
     conclusion = card.get("conclusion") or "직접 확인 가능한 핵심값 기준으로 판단한다."
@@ -298,26 +715,84 @@ def create_card_png(card: dict, output_path: Path) -> None:
     image.save(output_path)
 
 
+def build_report(records: list[ReportRecord], rate: ExchangeRate, card_path: Path) -> str:
+    if rate.value is None:
+        rate_line = f"USD/KRW: 환율 직접치 부족 (조회 {rate.query_time}, 출처 {rate.source}, 상태 {rate.status})."
+    else:
+        rate_line = (
+            f"USD/KRW: {rate.value:,.2f}원"
+            f" (조회 {rate.query_time}, 출처 {rate.source}, 원문 Last Update {rate.last_update}, 전일 대비 {pct_text(rate.change_pct)})."
+        )
+
+    lines = [
+        "## 1. 기준 환율 1줄",
+        rate_line,
+        "",
+        "## 2. 오늘 한눈에 추세판",
+        "| 구분 | 현재값 | 전일 | 전주 | 전월 | 전년 | 추세 | 판정 |",
+        "|---|---:|---|---|---|---|---|---|",
+    ]
+    for record in records:
+        lines.append(
+            f"| {record.label} | {record.current} | {record.day} | {record.week} | {record.month} | "
+            f"{record.year} | {record.trend} | {record.verdict} |"
+        )
+
+    summaries = summarize(records)
+    lines.extend(
+        [
+            "",
+            "## 3. 상승·하락 요약 4줄",
+            f"상승: {', '.join(summaries['상승'][:6]) if summaries['상승'] else '직접 확인된 상승 항목 부족'}",
+            f"하락: {', '.join(summaries['하락'][:6]) if summaries['하락'] else '직접 확인된 하락 항목 부족'}",
+            "전년: 전년 기준값 직접치 부족",
+            f"보류: {', '.join(summaries['보류'][:8]) if summaries['보류'] else '없음'}",
+            "",
+            "## 4. 가격표",
+            "| 항목 | 현재값 | 조회 시각·출처 | 원문 Last Update | 전월 대비 | 전년 대비 | 추세 |",
+            "|---|---:|---|---|---|---|---|",
+        ]
+    )
+    for record in records:
+        lines.append(
+            f"| {record.label} | {record.current} | {format_source(record)} | {record.last_update} | "
+            f"{record.month} | {record.year} | {record.trend} |"
+        )
+
+    conclusion = (
+        f"전월 기준으로 가장 강한 쪽은 {best_label(records, True)}, "
+        f"전년 기준으로 가장 구조적으로 강한 쪽은 직접치 부족, "
+        f"가장 약한 쪽은 {best_label(records, False)}, "
+        f"DRAM은 {group_direction(records, 'DRAM')}, NAND는 {group_direction(records, 'NAND/SSD')}."
+    )
+    lines.extend(
+        [
+            "",
+            "## 5. 마지막 한 줄",
+            conclusion,
+            "",
+            "## 6. 마지막 이미지형 요약판",
+            f"![오늘 메모리·저장장치 추세판]({card_path.name})",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def main() -> None:
-    if not os.getenv("OPENAI_API_KEY"):
-        raise RuntimeError("OPENAI_API_KEY secret is required.")
-
-    report_text = call_openai(REPORT_PROMPT, use_web_search=True)
-
-    try:
-        card_json_text = call_openai(CARD_EXTRACTION_PROMPT + "\n\n" + report_text, use_web_search=False)
-        card = extract_json(card_json_text)
-    except Exception:
-        card = fallback_card_data(report_text)
+    rate = query_usdkrw()
+    records = build_records(rate)
 
     report_path = REPORTS_DIR / f"memory_price_report_{TODAY}.md"
     card_path = REPORTS_DIR / f"memory_price_summary_{TODAY}.png"
+    conclusion = (
+        f"DRAM은 {group_direction(records, 'DRAM')}, "
+        f"NAND/SSD는 {group_direction(records, 'NAND/SSD')}, "
+        "소매는 비교 기준값 직접치 부족."
+    )
+    card = build_card_data(records, rate, conclusion)
     create_card_png(card, card_path)
-
-    image_markdown = f"![오늘 메모리·저장장치 추세판]({card_path.name})"
-    if image_markdown not in report_text:
-        report_text = report_text.rstrip() + "\n\n" + image_markdown + "\n"
-    report_path.write_text(report_text, encoding="utf-8")
+    report_path.write_text(build_report(records, rate, card_path), encoding="utf-8")
 
     print(f"Wrote {report_path.relative_to(ROOT)}")
     print(f"Wrote {card_path.relative_to(ROOT)}")
