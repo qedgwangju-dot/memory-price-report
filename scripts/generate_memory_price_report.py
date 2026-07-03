@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -27,10 +27,13 @@ UNAVAILABLE = "확인 불가"
 DELAYED_OR_CONFLICT = "지연/불일치 있음"
 VERIFIED = "확인"
 STALE_REFERENCE_DAYS = 45
+REQUEST_TIMEOUT_SECONDS = 15
 
 DRAMEXCHANGE_HOME = "https://www.dramexchange.com/"
 DRAMEXCHANGE_HOME_PRICE = "https://www.dramexchange.com/Home/HomePrice"
 YAHOO_USDKRW = "https://query1.finance.yahoo.com/v8/finance/chart/USDKRW=X?range=5d&interval=1d"
+DANAWA_PRICE_HISTORY = "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php"
+WAYBACK_CDX = "https://web.archive.org/cdx"
 
 DANAWA_PRODUCTS = {
     "소매 메모리": {
@@ -102,6 +105,17 @@ class ReportRecord:
     yoy_pct: float | None = None
     yoy_status: str = UNAVAILABLE
     yoy_source: str = ""
+    yoy_source_url: str = ""
+    yoy_reference: str = ""
+
+
+@dataclass
+class PriorYearValue:
+    value: float
+    unit: str
+    source: str
+    source_url: str
+    reference: str
 
 
 def normalize_text(value: str) -> str:
@@ -173,8 +187,13 @@ def classify(change_pct: float | None) -> tuple[str, str, str]:
     return f"공개 변화율 {pct_text(change_pct)} 기준 보합", "보합", "보합"
 
 
-def safe_get(url: str, *, params: dict[str, Any] | None = None) -> requests.Response:
-    response = SESSION.get(url, params=params, timeout=25)
+def safe_get(
+    url: str,
+    *,
+    params: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
+) -> requests.Response:
+    response = SESSION.get(url, params=params, headers=headers, timeout=REQUEST_TIMEOUT_SECONDS)
     response.raise_for_status()
     return response
 
@@ -298,6 +317,14 @@ def find_dict(rows: list[dict[str, Any]], field: str, *keywords: str) -> dict[st
         if all(keyword.lower() in value for keyword in keywords):
             return row
     return rows[0] if rows else None
+
+
+def find_dict_strict(rows: list[dict[str, Any]], field: str, *keywords: str) -> dict[str, Any] | None:
+    for row in rows:
+        value = str(row.get(field) or "").lower()
+        if all(keyword.lower() in value for keyword in keywords):
+            return row
+    return None
 
 
 def record_from_home_price(
@@ -494,6 +521,230 @@ def previous_year_date(current: date) -> date:
         return current.replace(year=current.year - 1, day=28)
 
 
+def cdx_date(value: date) -> str:
+    return value.strftime("%Y%m%d")
+
+
+def parse_wayback_timestamp(timestamp: str) -> datetime | None:
+    try:
+        return datetime.strptime(timestamp, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def wayback_kst(timestamp: str) -> str:
+    parsed = parse_wayback_timestamp(timestamp)
+    if parsed is None:
+        return timestamp
+    return parsed.astimezone(KST).strftime("%Y-%m-%d %H:%M KST")
+
+
+def wayback_url(capture: dict[str, str]) -> str:
+    return f"https://web.archive.org/web/{capture['timestamp']}id_/{capture['original']}"
+
+
+def fetch_cdx_captures(url_pattern: str, start: date, end: date, limit: int = 50) -> list[dict[str, str]]:
+    try:
+        data = safe_get(
+            WAYBACK_CDX,
+            params={
+                "url": url_pattern,
+                "from": cdx_date(start),
+                "to": cdx_date(end),
+                "output": "json",
+                "filter": "statuscode:200",
+                "collapse": "digest",
+                "fl": "timestamp,original,statuscode,digest",
+                "limit": str(limit),
+            },
+        ).json()
+    except Exception:
+        return []
+    if not isinstance(data, list) or len(data) < 2:
+        return []
+    headers = [str(item) for item in data[0]]
+    captures: list[dict[str, str]] = []
+    for row in data[1:]:
+        if isinstance(row, list) and len(row) == len(headers):
+            captures.append({headers[index]: str(value) for index, value in enumerate(row)})
+    return captures
+
+
+def sorted_captures_by_distance(captures: list[dict[str, str]], target: date) -> list[dict[str, str]]:
+    target_dt = datetime(target.year, target.month, target.day, 12, tzinfo=timezone.utc)
+
+    def distance(capture: dict[str, str]) -> float:
+        parsed = parse_wayback_timestamp(capture.get("timestamp", ""))
+        if parsed is None:
+            return float("inf")
+        return abs((parsed - target_dt).total_seconds())
+
+    return sorted(captures, key=distance)
+
+
+def add_prior_from_row(
+    values: dict[str, PriorYearValue],
+    label: str,
+    row: SourceRow | None,
+    source: str,
+    source_url: str,
+    reference: str,
+) -> None:
+    if row is None:
+        return
+    values[label] = PriorYearValue(row.value, "USD", source, source_url, reference)
+
+
+def fetch_prior_year_dramexchange_spot(prior_date: date) -> dict[str, PriorYearValue]:
+    captures = fetch_cdx_captures("www.dramexchange.com/", prior_date - timedelta(days=7), prior_date + timedelta(days=7), 20)
+    for capture in sorted_captures_by_distance(captures, prior_date):
+        archive_url = wayback_url(capture)
+        try:
+            soup = BeautifulSoup(safe_get(archive_url).text, "html.parser")
+        except Exception:
+            continue
+        dram_rows = parse_spot_table(soup, "tb_NationalDramSpotPrice")
+        flash_rows = parse_spot_table(soup, "tb_NationalFlashSpotPrice")
+        module_rows = parse_spot_table(soup, "tb_ModuleSpotPrice")
+        if not (dram_rows or flash_rows or module_rows):
+            continue
+        source = "Internet Archive DRAMeXchange 공개표 캡처"
+        reference = f"캡처 {wayback_kst(capture['timestamp'])}, 원문 Last Update 별도 없음"
+        values: dict[str, PriorYearValue] = {}
+        add_prior_from_row(values, "DDR3 칩", find_row(dram_rows, "DDR3"), source, archive_url, reference)
+        add_prior_from_row(values, "DDR4 칩", find_row(dram_rows, "DDR4", "3200"), source, archive_url, reference)
+        add_prior_from_row(values, "DDR5 칩", find_row(dram_rows, "DDR5", "4800"), source, archive_url, reference)
+        add_prior_from_row(values, "DDR4 모듈", find_row(module_rows, "DDR4", "UDIMM", "16GB", "3200"), source, archive_url, reference)
+        add_prior_from_row(values, "DDR5 모듈", find_row(module_rows, "DDR5", "UDIMM", "16GB"), source, archive_url, reference)
+        add_prior_from_row(values, "NAND 웨이퍼", find_row(flash_rows, "TLC", "512Gb"), source, archive_url, reference)
+        return values
+    return {}
+
+
+def normalized_home_price_last_update(row: dict[str, Any]) -> str:
+    last_update = row.get("show_day") or row.get("slotTime") or kst_from_timestamp(row.get("updateTime"))
+    if isinstance(last_update, str) and "T" in last_update:
+        last_update = last_update.replace("T", " ")
+    return str(last_update or "원문 Last Update 별도 없음")
+
+
+def reference_is_compatible(last_update: str, target: date) -> bool:
+    match = re.search(r"\d{4}-\d{2}-\d{2}", last_update or "")
+    if not match:
+        return True
+    try:
+        ref_date = datetime.strptime(match.group(0), "%Y-%m-%d").date()
+    except ValueError:
+        return True
+    return abs((ref_date - target).days) <= STALE_REFERENCE_DAYS
+
+
+def fetch_wayback_json(capture: dict[str, str]) -> list[dict[str, Any]]:
+    try:
+        data = safe_get(wayback_url(capture)).json()
+    except Exception:
+        return []
+    return data if isinstance(data, list) else []
+
+
+def fetch_prior_year_dramexchange_home_prices(prior_date: date) -> dict[str, PriorYearValue]:
+    captures = fetch_cdx_captures(
+        "www.dramexchange.com/Home/HomePrice*",
+        prior_date - timedelta(days=45),
+        prior_date + timedelta(days=45),
+        200,
+    )
+    specs = [
+        ("DRAM 계약가", "NationalDramContract", "show_name", ("DDR4", "8Gb"), "USD", "DRAMeXchange HomePrice NationalDramContract"),
+        ("NAND 계약가", "NationalFlashContract", "show_name", ("NAND",), "USD", "DRAMeXchange HomePrice NationalFlashContract"),
+        ("PC-client OEM SSD 계약가", "PCC", "Name", ("1TB",), "USD", "DRAMeXchange HomePrice PCC"),
+        ("SSD street price", "SSD", "Series", ("990", "pro"), "USD", "DRAMeXchange HomePrice SSD"),
+    ]
+    values: dict[str, PriorYearValue] = {}
+    for label, source_key, field, keywords, unit, source_name in specs:
+        source_captures = [
+            capture
+            for capture in captures
+            if f"source={source_key.lower()}" in capture.get("original", "").lower()
+        ]
+        for capture in sorted_captures_by_distance(source_captures, prior_date)[:6]:
+            rows = fetch_wayback_json(capture)
+            row = find_dict_strict(rows, field, *keywords)
+            if row is None:
+                continue
+            last_update = normalized_home_price_last_update(row)
+            if not reference_is_compatible(last_update, prior_date):
+                continue
+            value = parse_float(row.get("show_avg", row.get("avg")))
+            if value is None:
+                continue
+            values[label] = PriorYearValue(
+                value=value,
+                unit=unit,
+                source=f"Internet Archive {source_name} 캡처",
+                source_url=wayback_url(capture),
+                reference=f"원문 {last_update}, 캡처 {wayback_kst(capture['timestamp'])}",
+            )
+            break
+    return values
+
+
+def danawa_product_code(url: str) -> str | None:
+    match = re.search(r"pcode=(\d+)", url)
+    return match.group(1) if match else None
+
+
+def fetch_prior_year_danawa(prior_date: date) -> dict[str, PriorYearValue]:
+    values: dict[str, PriorYearValue] = {}
+    target_month = prior_date.strftime("%y-%m")
+    for label, product in DANAWA_PRODUCTS.items():
+        product_code = danawa_product_code(product["url"])
+        if product_code is None:
+            continue
+        headers = {
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": product["url"],
+        }
+        try:
+            data = safe_get(DANAWA_PRICE_HISTORY, params={"productCode": product_code}, headers=headers).json()
+        except Exception:
+            continue
+        series = data.get("24") if isinstance(data, dict) else None
+        points = series.get("result") if isinstance(series, dict) else None
+        if not isinstance(points, list):
+            continue
+        for point in points:
+            if not isinstance(point, dict) or str(point.get("date")) != target_month:
+                continue
+            price = parse_float(point.get("minPrice"))
+            if price is None or price <= 0:
+                continue
+            values[label] = PriorYearValue(
+                value=price,
+                unit="KRW",
+                source=f"Danawa 가격추이 24개월 · {product['name']}",
+                source_url=f"{DANAWA_PRICE_HISTORY}?productCode={product_code}",
+                reference=f"{target_month} 월간 가격추이",
+            )
+            break
+    return values
+
+
+def fetch_prior_year_values(prior_date: date) -> dict[str, PriorYearValue]:
+    values: dict[str, PriorYearValue] = {}
+    for fetcher in (
+        fetch_prior_year_dramexchange_spot,
+        fetch_prior_year_dramexchange_home_prices,
+        fetch_prior_year_danawa,
+    ):
+        try:
+            values.update(fetcher(prior_date))
+        except Exception:
+            continue
+    return values
+
+
 def snapshot_path(snapshot_date: date) -> Path:
     return SNAPSHOT_DIR / f"memory_price_snapshot_{snapshot_date.isoformat()}.json"
 
@@ -512,28 +763,46 @@ def load_snapshot(snapshot_date: date) -> dict[str, dict[str, Any]]:
     return {str(row.get("label") or ""): row for row in rows if isinstance(row, dict)}
 
 
-def apply_yoy_from_snapshot(records: list[ReportRecord]) -> None:
+def prior_value_from_snapshot(record: ReportRecord, prior_date: date, prior_rows: dict[str, dict[str, Any]]) -> PriorYearValue | None:
+    prior = prior_rows.get(base_label(record))
+    if not prior:
+        return None
+    if prior.get("certainty_status") != VERIFIED:
+        return None
+    if prior.get("value_unit") != record.value_unit:
+        return None
+    prior_value = parse_float(prior.get("numeric_value"))
+    if prior_value is None or prior_value <= 0:
+        return None
+    return PriorYearValue(
+        value=prior_value,
+        unit=record.value_unit,
+        source=f"{prior_date.isoformat()} 검증 스냅샷",
+        source_url=str(snapshot_path(prior_date)),
+        reference=prior_date.isoformat(),
+    )
+
+
+def apply_yoy(records: list[ReportRecord]) -> None:
     prior_date = previous_year_date(TODAY_DATE)
+    prior_values = fetch_prior_year_values(prior_date)
     prior_rows = load_snapshot(prior_date)
     for record in records:
         record.year = "전년 직접치 부족"
         record.yoy_status = "전년 직접치 부족"
         if record.certainty_status != VERIFIED or record.numeric_value is None:
+            record.year = "현재 직접치 부족"
+            record.yoy_status = "현재 직접치 부족"
             continue
-        prior = prior_rows.get(base_label(record))
-        if not prior:
+        prior = prior_values.get(base_label(record)) or prior_value_from_snapshot(record, prior_date, prior_rows)
+        if prior is None or prior.unit != record.value_unit or prior.value <= 0:
             continue
-        if prior.get("certainty_status") != VERIFIED:
-            continue
-        if prior.get("value_unit") != record.value_unit:
-            continue
-        prior_value = parse_float(prior.get("numeric_value"))
-        if prior_value is None or prior_value <= 0:
-            continue
-        record.yoy_pct = ((record.numeric_value / prior_value) - 1) * 100
+        record.yoy_pct = ((record.numeric_value / prior.value) - 1) * 100
         record.yoy_status = VERIFIED
-        record.yoy_source = f"{prior_date.isoformat()} 스냅샷"
-        record.year = f"전년 대비 {pct_text(record.yoy_pct)}"
+        record.yoy_source = prior.source
+        record.yoy_source_url = prior.source_url
+        record.yoy_reference = prior.reference
+        record.year = f"전년 대비 {pct_text(record.yoy_pct)} · 전년값 {prior.reference} · 출처 {prior.source}"
 
 
 def save_snapshot(records: list[ReportRecord], rate: ExchangeRate) -> Path:
@@ -560,6 +829,11 @@ def save_snapshot(records: list[ReportRecord], rate: ExchangeRate) -> Path:
                 "query_source": record.query_source,
                 "source_url": record.source_url,
                 "last_update": record.last_update,
+                "yoy_pct": record.yoy_pct,
+                "yoy_status": record.yoy_status,
+                "yoy_source": record.yoy_source,
+                "yoy_source_url": record.yoy_source_url,
+                "yoy_reference": record.yoy_reference,
             }
             for record in records
         ],
@@ -586,7 +860,7 @@ def summarize(records: list[ReportRecord]) -> dict[str, list[str]]:
             rising.append(f"{base_label} {pct_text(record.change_pct)}")
         elif record.verdict == "약함":
             falling.append(f"{base_label} {pct_text(record.change_pct)}")
-        elif record.verdict == "판단 보류":
+        elif record.verdict == "판단 보류" and record.yoy_status != VERIFIED:
             pending.append(base_label)
         if record.year == UNAVAILABLE:
             yoy.append(base_label)
@@ -627,6 +901,17 @@ def compact_source(record: ReportRecord) -> str:
     if "dramexchange" in source_text:
         return "DX"
     return "출처"
+
+
+def compact_yoy_source(record: ReportRecord) -> str:
+    source_text = (record.yoy_source or record.query_source).lower()
+    if "danawa" in source_text:
+        return "Danawa 24M"
+    if "internet archive" in source_text and "dramexchange" in source_text:
+        return "IA+DX"
+    if "스냅샷" in record.yoy_source:
+        return "스냅샷"
+    return compact_source(record)
 
 
 def compact_status(status: str) -> str:
@@ -718,6 +1003,7 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
 
     summaries = summarize(records)
     priorities = [
+        "DDR3 칩",
         "DDR4 칩",
         "DDR5 칩",
         "DRAM 계약가",
@@ -726,6 +1012,7 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
         "PC-client OEM SSD 계약가",
         "SSD street price",
         "소매 메모리",
+        "소매 HDD",
         "소매 SSD",
     ]
     rows = []
@@ -743,11 +1030,11 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
                 "basis": "전년" if verified_yoy else "전년 부족",
                 "trend_pct": record.yoy_pct if verified_yoy else None,
                 "change": pct_text(record.yoy_pct) if verified_yoy else "직접치 부족",
-                "source_status": f"{compact_source(record)}+스냅샷 · 확인" if verified_yoy else f"{compact_source(record)} · 전년부족",
+                "source_status": f"{compact_yoy_source(record)} · 확인" if verified_yoy else f"{compact_source(record)} · 전년부족",
                 "verdict": f"{symbol}{display_verdict if display_verdict != '판단 보류' else '보류'}",
             }
         )
-        if len(rows) >= 8:
+        if len(rows) >= 11:
             break
 
     rate_status = rate.status if rate.value is None else VERIFIED
@@ -869,7 +1156,7 @@ def draw_trend_line(draw: ImageDraw.ImageDraw, x: int, y: int, change_pct: float
 
 
 def create_card_png(card: dict[str, Any], output_path: Path) -> None:
-    width, height = 1400, 1800
+    width, height = 1400, 2100
     image = Image.new("RGB", (width, height), "#F6F7F9")
     draw = ImageDraw.Draw(image)
 
@@ -908,7 +1195,7 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
     y += box_h + 44
 
     draw.text((margin, y), "전년 대비 추세선", font=table_bold_font, fill="#111827")
-    draw.text((margin + 235, y + 4), "전년 직접치 없으면 점선", font=meta_font, fill="#667085")
+    draw.text((margin + 235, y + 4), "전년값 직접 조회 없으면 점선", font=meta_font, fill="#667085")
     y += 52
     header_h = 56
     draw.rounded_rectangle((margin, y, width - margin, y + header_h), radius=14, fill="#111827")
@@ -917,7 +1204,7 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
         draw.text((margin + 24 + offset, y + 14), label, font=chip_font, fill="#FFFFFF")
     y += header_h
 
-    rows = (card.get("rows") or [])[:8]
+    rows = (card.get("rows") or [])[:11]
     row_h = 82
     for idx, row in enumerate(rows):
         bg = "#FFFFFF" if idx % 2 == 0 else "#F9FAFB"
@@ -1027,7 +1314,7 @@ def build_report(records: list[ReportRecord], rate: ExchangeRate, card_path: Pat
 def main() -> None:
     rate = query_usdkrw()
     records = build_records(rate)
-    apply_yoy_from_snapshot(records)
+    apply_yoy(records)
 
     report_path = REPORTS_DIR / f"memory_price_report_{TODAY}.md"
     card_path = REPORTS_DIR / f"memory_price_summary_{TODAY}.png"
