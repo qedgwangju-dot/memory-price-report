@@ -568,7 +568,7 @@ def image_verified_change(record: ReportRecord) -> bool:
 
 def image_trend_text(record: ReportRecord) -> str:
     if not image_verified_change(record):
-        return "보류"
+        return "직접치 부족"
     if (record.change_pct or 0) > 0.5:
         direction = "상승"
     elif (record.change_pct or 0) < -0.5:
@@ -615,6 +615,7 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
             {
                 "item": compact_label(record.label),
                 "trend": image_trend_text(record),
+                "basis": record.basis if verified_change else "직접치 부족",
                 "trend_pct": record.change_pct if verified_change else None,
                 "change": pct_text(record.change_pct) if verified_change else UNAVAILABLE,
                 "source_status": f"{compact_source(record)} · {compact_status(record.certainty_status)}",
@@ -707,29 +708,39 @@ def list_text(values: object, limit: int = 4) -> str:
     return str(values or "-")
 
 
-def draw_trend_marker(draw: ImageDraw.ImageDraw, x: int, y: int, change_pct: float | None, rail_width: int = 230) -> None:
-    base_color = "#D0D5DD"
-    center = x + rail_width // 2
-    draw.line((x, y, x + rail_width, y), fill=base_color, width=5)
-    draw.line((center, y - 14, center, y + 14), fill="#98A2B3", width=2)
+def draw_trend_line(draw: ImageDraw.ImageDraw, x: int, y: int, change_pct: float | None, width: int = 230, height: int = 48) -> None:
+    top = y
+    bottom = y + height
+    left = x
+    right = x + width
+    mid = y + height // 2
+    draw.rounded_rectangle((left, top, right, bottom), radius=10, fill="#F9FAFB", outline="#EAECF0", width=1)
+    draw.line((left + 12, mid, right - 12, mid), fill="#D0D5DD", width=2)
     if change_pct is None:
-        draw.ellipse((center - 8, y - 8, center + 8, y + 8), fill="#8A5A00")
+        dash_y = mid
+        for start in range(left + 18, right - 18, 18):
+            draw.line((start, dash_y, start + 8, dash_y), fill="#8A5A00", width=3)
         return
 
     magnitude = min(abs(change_pct), 12.0) / 12.0
-    length = max(18, int((rail_width // 2 - 10) * magnitude))
+    amplitude = max(4, int((height // 2 - 7) * magnitude))
+    start_x = left + 18
+    end_x = right - 18
     if change_pct > 0.5:
         color = "#0F7B4F"
-        end = center + length
-        draw.line((center, y, end, y), fill=color, width=10)
-        draw.polygon([(end + 12, y), (end - 4, y - 12), (end - 4, y + 12)], fill=color)
+        start_y = mid + amplitude
+        end_y = mid - amplitude
     elif change_pct < -0.5:
         color = "#B42318"
-        end = center - length
-        draw.line((center, y, end, y), fill=color, width=10)
-        draw.polygon([(end - 12, y), (end + 4, y - 12), (end + 4, y + 12)], fill=color)
+        start_y = mid - amplitude
+        end_y = mid + amplitude
     else:
-        draw.ellipse((center - 9, y - 9, center + 9, y + 9), fill="#475467")
+        color = "#475467"
+        start_y = mid
+        end_y = mid
+    draw.line((start_x, start_y, end_x, end_y), fill=color, width=5)
+    draw.ellipse((start_x - 5, start_y - 5, start_x + 5, start_y + 5), fill=color)
+    draw.ellipse((end_x - 6, end_y - 6, end_x + 6, end_y + 6), fill=color)
 
 
 def create_card_png(card: dict[str, Any], output_path: Path) -> None:
@@ -771,12 +782,12 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
         draw.text((x + 28, y + 135), str(box.get("basis") or UNAVAILABLE), font=meta_font, fill="#475467")
     y += box_h + 44
 
-    draw.text((margin, y), "확인 추세판", font=table_bold_font, fill="#111827")
-    draw.text((margin + 178, y + 4), "하락 ◀ 0 ▶ 상승", font=meta_font, fill="#667085")
+    draw.text((margin, y), "확인 추세선", font=table_bold_font, fill="#111827")
+    draw.text((margin + 178, y + 4), "공개 변화율 1기간 선, 히스토리 미확인 시 점선", font=meta_font, fill="#667085")
     y += 52
     header_h = 56
     draw.rounded_rectangle((margin, y, width - margin, y + header_h), radius=14, fill="#111827")
-    headers = [("항목", 0), ("추세 방향", 315), ("변화율", 670), ("출처·상태", 830), ("판정", 1075)]
+    headers = [("항목", 0), ("기준", 280), ("추세선", 410), ("변화율", 665), ("출처·상태", 820), ("판정", 1080)]
     for label, offset in headers:
         draw.text((margin + 24 + offset, y + 14), label, font=chip_font, fill="#FFFFFF")
     y += header_h
@@ -786,17 +797,17 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
     for idx, row in enumerate(rows):
         bg = "#FFFFFF" if idx % 2 == 0 else "#F9FAFB"
         draw.rectangle((margin, y, width - margin, y + row_h), fill=bg)
-        draw.text((margin + 24, y + 23), str(row.get("item") or "-")[:22], font=table_font, fill="#111827")
+        draw.text((margin + 24, y + 23), str(row.get("item") or "-")[:18], font=table_font, fill="#111827")
         trend = str(row.get("trend") or "보류")
         trend_pct = row.get("trend_pct")
         trend_color, _ = status_color(trend)
-        draw.text((margin + 339, y + 23), trend[:8], font=trend_font, fill=trend_color)
-        draw_trend_marker(draw, margin + 485, y + 41, trend_pct if isinstance(trend_pct, (int, float)) else None)
-        draw.text((margin + 694, y + 23), str(row.get("change") or "-")[:12], font=table_bold_font, fill="#111827")
-        draw.text((margin + 854, y + 23), str(row.get("source_status") or "-")[:18], font=meta_font, fill="#475467")
+        draw.text((margin + 304, y + 23), str(row.get("basis") or "-")[:8], font=table_font, fill=trend_color)
+        draw_trend_line(draw, margin + 430, y + 17, trend_pct if isinstance(trend_pct, (int, float)) else None)
+        draw.text((margin + 689, y + 23), str(row.get("change") or "-")[:12], font=table_bold_font, fill="#111827")
+        draw.text((margin + 844, y + 23), str(row.get("source_status") or "-")[:18], font=meta_font, fill="#475467")
         verdict = str(row.get("verdict") or "보류")
         color, _ = status_color(verdict)
-        draw.text((margin + 1099, y + 23), verdict[:14], font=table_bold_font, fill=color)
+        draw.text((margin + 1104, y + 23), verdict[:14], font=table_bold_font, fill=color)
         y += row_h
     y += 24
 
