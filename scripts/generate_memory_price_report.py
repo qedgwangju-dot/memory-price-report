@@ -550,15 +550,20 @@ def group_direction(records: list[ReportRecord], group: str) -> str:
     return "보합"
 
 
+def image_verified_change(record: ReportRecord) -> bool:
+    return record.certainty_status == VERIFIED and record.change_pct is not None
+
+
 def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion: str) -> dict[str, Any]:
     def box(label: str, group: str) -> dict[str, str]:
-        direction = group_direction(records, group)
+        verified_records = [record for record in records if record.group == group and image_verified_change(record)]
+        direction = group_direction(verified_records, group)
         status = {"강함": "상승", "약함": "하락", "보합": "보합"}.get(direction, "보류")
-        basis = "공개 변화율" if status != "보류" else UNAVAILABLE
+        basis = "확인값 기준" if status != "보류" else UNAVAILABLE
         return {"label": label, "status": status, "basis": basis}
 
     def card_change_items(verdict: str, limit: int) -> list[str]:
-        candidates = [record for record in records if record.verdict == verdict and record.change_pct is not None]
+        candidates = [record for record in records if record.verdict == verdict and image_verified_change(record)]
         candidates.sort(key=lambda record: abs(record.change_pct or 0), reverse=True)
         return [compact_label(record.label) for record in candidates[:limit]]
 
@@ -579,14 +584,16 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
         record = next((item for item in records if item.label.startswith(wanted)), None)
         if record is None:
             continue
-        symbol = "▲ " if record.verdict == "강함" else "▼ " if record.verdict == "약함" else "— " if record.verdict == "보합" else ""
+        verified_change = image_verified_change(record)
+        display_verdict = record.verdict if verified_change else "판단 보류"
+        symbol = "▲ " if display_verdict == "강함" else "▼ " if display_verdict == "약함" else "— " if display_verdict == "보합" else ""
         rows.append(
             {
                 "item": wanted,
-                "basis": record.basis,
-                "change": pct_text(record.change_pct) if record.change_pct is not None else UNAVAILABLE,
+                "basis": record.basis if verified_change else UNAVAILABLE,
+                "change": pct_text(record.change_pct) if verified_change else UNAVAILABLE,
                 "source_status": f"{compact_source(record)} · {record.certainty_status}",
-                "verdict": f"{symbol}{record.verdict if record.verdict != '판단 보류' else '보류'}",
+                "verdict": f"{symbol}{display_verdict if display_verdict != '판단 보류' else '보류'}",
             }
         )
         if len(rows) >= 8:
