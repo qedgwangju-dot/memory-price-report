@@ -554,6 +554,18 @@ def image_verified_change(record: ReportRecord) -> bool:
     return record.certainty_status == VERIFIED and record.change_pct is not None
 
 
+def image_trend_text(record: ReportRecord) -> str:
+    if not image_verified_change(record):
+        return "보류"
+    if (record.change_pct or 0) > 0.5:
+        direction = "상승"
+    elif (record.change_pct or 0) < -0.5:
+        direction = "하락"
+    else:
+        direction = "보합"
+    return f"{record.basis} {direction}"
+
+
 def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion: str) -> dict[str, Any]:
     def box(label: str, group: str) -> dict[str, str]:
         verified_records = [record for record in records if record.group == group and image_verified_change(record)]
@@ -590,7 +602,8 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
         rows.append(
             {
                 "item": wanted,
-                "basis": record.basis if verified_change else UNAVAILABLE,
+                "trend": image_trend_text(record),
+                "trend_pct": record.change_pct if verified_change else None,
                 "change": pct_text(record.change_pct) if verified_change else UNAVAILABLE,
                 "source_status": f"{compact_source(record)} · {record.certainty_status}",
                 "verdict": f"{symbol}{display_verdict if display_verdict != '판단 보류' else '보류'}",
@@ -682,6 +695,30 @@ def list_text(values: object, limit: int = 4) -> str:
     return str(values or "-")
 
 
+def draw_trend_marker(draw: ImageDraw.ImageDraw, x: int, y: int, change_pct: float | None) -> None:
+    base_color = "#D0D5DD"
+    center = x + 40
+    draw.line((x, y, x + 80, y), fill=base_color, width=4)
+    if change_pct is None:
+        draw.ellipse((center - 5, y - 5, center + 5, y + 5), fill="#8A5A00")
+        return
+
+    magnitude = min(abs(change_pct), 12.0) / 12.0
+    length = max(9, int(40 * magnitude))
+    if change_pct > 0.5:
+        color = "#0F7B4F"
+        end = center + length
+        draw.line((center, y, end, y), fill=color, width=6)
+        draw.polygon([(end, y), (end - 10, y - 7), (end - 10, y + 7)], fill=color)
+    elif change_pct < -0.5:
+        color = "#B42318"
+        end = center - length
+        draw.line((center, y, end, y), fill=color, width=6)
+        draw.polygon([(end, y), (end + 10, y - 7), (end + 10, y + 7)], fill=color)
+    else:
+        draw.ellipse((center - 6, y - 6, center + 6, y + 6), fill="#475467")
+
+
 def create_card_png(card: dict[str, Any], output_path: Path) -> None:
     width, height = 1400, 1700
     image = Image.new("RGB", (width, height), "#F6F7F9")
@@ -720,11 +757,11 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
         draw.text((x + 28, y + 135), str(box.get("basis") or UNAVAILABLE), font=meta_font, fill="#475467")
     y += box_h + 44
 
-    draw.text((margin, y), "미니 추세표", font=table_bold_font, fill="#111827")
+    draw.text((margin, y), "확인 추세표", font=table_bold_font, fill="#111827")
     y += 48
     header_h = 56
     draw.rounded_rectangle((margin, y, width - margin, y + header_h), radius=14, fill="#111827")
-    headers = [("항목", 0), ("기준", 360), ("변화율", 535), ("출처·상태", 740), ("판정", 1030)]
+    headers = [("항목", 0), ("추세", 360), ("변화율", 555), ("출처·상태", 765), ("판정", 1060)]
     for label, offset in headers:
         draw.text((margin + 24 + offset, y + 14), label, font=chip_font, fill="#FFFFFF")
     y += header_h
@@ -735,12 +772,16 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
         bg = "#FFFFFF" if idx % 2 == 0 else "#F9FAFB"
         draw.rectangle((margin, y, width - margin, y + row_h), fill=bg)
         draw.text((margin + 24, y + 18), str(row.get("item") or "-")[:24], font=table_font, fill="#111827")
-        draw.text((margin + 384, y + 18), str(row.get("basis") or "-")[:10], font=table_font, fill="#475467")
-        draw.text((margin + 559, y + 18), str(row.get("change") or "-")[:18], font=table_font, fill="#111827")
-        draw.text((margin + 764, y + 18), str(row.get("source_status") or "-")[:18], font=meta_font, fill="#475467")
+        trend = str(row.get("trend") or "보류")
+        trend_pct = row.get("trend_pct")
+        trend_color, _ = status_color(trend)
+        draw.text((margin + 384, y + 18), trend[:8], font=table_font, fill=trend_color)
+        draw_trend_marker(draw, margin + 490, y + 36, trend_pct if isinstance(trend_pct, (int, float)) else None)
+        draw.text((margin + 579, y + 18), str(row.get("change") or "-")[:18], font=table_font, fill="#111827")
+        draw.text((margin + 789, y + 18), str(row.get("source_status") or "-")[:18], font=meta_font, fill="#475467")
         verdict = str(row.get("verdict") or "보류")
         color, _ = status_color(verdict)
-        draw.text((margin + 1054, y + 18), verdict[:16], font=table_bold_font, fill=color)
+        draw.text((margin + 1084, y + 18), verdict[:16], font=table_bold_font, fill=color)
         y += row_h
     y += 34
 
