@@ -20,6 +20,10 @@ REPORTS_DIR.mkdir(exist_ok=True)
 KST = ZoneInfo("Asia/Seoul")
 TODAY = datetime.now(KST).strftime("%Y-%m-%d")
 QUERY_TIME = datetime.now(KST).strftime("%Y-%m-%d %H:%M KST")
+UNAVAILABLE = "확인 불가"
+DELAYED_OR_CONFLICT = "지연/불일치 있음"
+VERIFIED = "확인"
+STALE_REFERENCE_DAYS = 45
 
 DRAMEXCHANGE_HOME = "https://www.dramexchange.com/"
 DRAMEXCHANGE_HOME_PRICE = "https://www.dramexchange.com/Home/HomePrice"
@@ -89,6 +93,7 @@ class ReportRecord:
     basis: str
     change_pct: float | None = None
     source_url: str = ""
+    certainty_status: str = VERIFIED
 
 
 def normalize_text(value: str) -> str:
@@ -114,7 +119,7 @@ def parse_pct(value: Any) -> float | None:
 
 def pct_text(value: float | None) -> str:
     if value is None:
-        return "직접치 부족"
+        return UNAVAILABLE
     return f"{value:+.2f}%"
 
 
@@ -125,7 +130,7 @@ def fmt_krw(value: float) -> str:
 def fmt_usd(value: float, rate: ExchangeRate) -> str:
     base = f"${value:,.3f}"
     if rate.value is None:
-        return f"{base} / 환율 직접치 부족"
+        return f"{base} / 환율 {UNAVAILABLE}"
     return f"{base} (약 {fmt_krw(value * rate.value)})"
 
 
@@ -138,9 +143,21 @@ def kst_from_timestamp(ts: int | str | float | None) -> str:
         return "원문 Last Update 별도 없음"
 
 
+def certainty_from_last_update(last_update: str) -> str:
+    match = re.search(r"\d{4}-\d{2}-\d{2}", last_update or "")
+    if not match:
+        return VERIFIED
+    try:
+        ref_date = datetime.strptime(match.group(0), "%Y-%m-%d").date()
+    except ValueError:
+        return VERIFIED
+    age_days = (datetime.now(KST).date() - ref_date).days
+    return DELAYED_OR_CONFLICT if age_days > STALE_REFERENCE_DAYS else VERIFIED
+
+
 def classify(change_pct: float | None) -> tuple[str, str, str]:
     if change_pct is None:
-        return "직접치 부족", "판단 보류", "보류"
+        return UNAVAILABLE, "판단 보류", "보류"
     if change_pct > 0.5:
         return f"공개 변화율 {pct_text(change_pct)} 기준 상승", "강함", "상승"
     if change_pct < -0.5:
@@ -168,7 +185,7 @@ def query_usdkrw() -> ExchangeRate:
             source_url="https://finance.yahoo.com/quote/USDKRW=X",
             query_time=QUERY_TIME,
             last_update=kst_from_timestamp(meta.get("regularMarketTime")),
-            status="직접 확인",
+            status=VERIFIED,
             change_pct=change,
         )
     except Exception as exc:
@@ -177,8 +194,8 @@ def query_usdkrw() -> ExchangeRate:
             source="Yahoo Finance USDKRW=X",
             source_url="https://finance.yahoo.com/quote/USDKRW=X",
             query_time=QUERY_TIME,
-            last_update="직접 확인 실패",
-            status=f"환율 직접치 부족: {exc.__class__.__name__}",
+            last_update=UNAVAILABLE,
+            status=f"{UNAVAILABLE}: {exc.__class__.__name__}",
         )
 
 
@@ -233,26 +250,27 @@ def find_row(rows: list[SourceRow], *keywords: str) -> SourceRow | None:
 
 def record_from_row(label: str, group: str, row: SourceRow | None, rate: ExchangeRate, basis: str) -> ReportRecord:
     if row is None:
-        return unavailable_record(label, group, "DRAMeXchange 공개표", DRAMEXCHANGE_HOME, "직접 확인 실패")
+        return unavailable_record(label, group, "DRAMeXchange 공개표", DRAMEXCHANGE_HOME, UNAVAILABLE)
 
     trend, verdict, _ = classify(row.change_pct)
     current = fmt_usd(row.value, rate)
-    change = f"공개 변화율 {pct_text(row.change_pct)}" if row.change_pct is not None else "직접치 부족"
+    change = f"공개 변화율 {pct_text(row.change_pct)}" if row.change_pct is not None else UNAVAILABLE
     return ReportRecord(
         label=label,
         group=group,
         current=current,
         query_source=f"{QUERY_TIME} · DRAMeXchange 공개표",
         last_update=row.last_update,
-        day=change if basis == "전일" else "직접치 부족",
-        week=change if basis == "전주" else "직접치 부족",
-        month=change if basis == "전월" else "직접치 부족",
-        year="직접치 부족",
+        day=change if basis == "전일" else UNAVAILABLE,
+        week=change if basis == "전주" else UNAVAILABLE,
+        month=change if basis == "전월" else UNAVAILABLE,
+        year=UNAVAILABLE,
         trend=trend,
         verdict=verdict,
         basis=basis,
         change_pct=row.change_pct,
         source_url=row.source_url,
+        certainty_status=VERIFIED,
     )
 
 
@@ -281,36 +299,45 @@ def record_from_home_price(
     source_url: str,
 ) -> ReportRecord:
     if row is None:
-        return unavailable_record(label, group, source_name, source_url, "직접 확인 실패")
+        return unavailable_record(label, group, source_name, source_url, UNAVAILABLE)
 
     value = parse_float(row.get("show_avg", row.get("avg")))
     if value is None:
-        return unavailable_record(label, group, source_name, source_url, "직접치 부족")
+        return unavailable_record(label, group, source_name, source_url, UNAVAILABLE)
 
     change = parse_float(row.get("show_avg_change", row.get("change")))
     name = str(row.get("show_name") or row.get("Name") or row.get("Series") or label)
     last_update = row.get("show_day") or row.get("slotTime") or kst_from_timestamp(row.get("updateTime"))
     if isinstance(last_update, str) and "T" in last_update:
         last_update = last_update.replace("T", " ")
+    last_update = str(last_update or "원문 Last Update 별도 없음")
+    certainty_status = certainty_from_last_update(last_update)
 
     trend, verdict, _ = classify(change)
     current = fmt_usd(value, rate)
-    change_text = f"공개 변화율 {pct_text(change)}, 기준값 미공개" if change is not None else "직접치 부족"
+    change_text = f"공개 변화율 {pct_text(change)}, 기준값 확인 불가" if change is not None else UNAVAILABLE
+    if certainty_status == DELAYED_OR_CONFLICT:
+        current = DELAYED_OR_CONFLICT
+        change_text = DELAYED_OR_CONFLICT
+        trend = DELAYED_OR_CONFLICT
+        verdict = "판단 보류"
+        change = None
     return ReportRecord(
         label=f"{label} ({name})" if name and name != label else label,
         group=group,
         current=current,
         query_source=f"{QUERY_TIME} · {source_name}",
-        last_update=str(last_update or "원문 Last Update 별도 없음"),
-        day="직접치 부족",
-        week="직접치 부족",
+        last_update=last_update,
+        day=UNAVAILABLE,
+        week=UNAVAILABLE,
         month=change_text,
-        year="직접치 부족",
+        year=UNAVAILABLE,
         trend=trend,
         verdict=verdict,
         basis="전월",
         change_pct=change,
         source_url=source_url,
+        certainty_status=certainty_status,
     )
 
 
@@ -347,24 +374,25 @@ def fetch_danawa_record(label: str, product: dict[str, str]) -> ReportRecord:
         html = safe_get(url).text
         price = parse_danawa_price(html)
         if price is None:
-            return unavailable_record(label, "소매", source_name, url, "직접치 부족")
+            return unavailable_record(label, "소매", source_name, url, UNAVAILABLE)
         return ReportRecord(
             label=f"{label} ({product['name']})",
             group="소매",
             current=fmt_krw(price),
             query_source=f"{QUERY_TIME} · {source_name}",
             last_update="상품 페이지 직접 조회, 원문 Last Update 별도 없음",
-            day="직접치 부족",
-            week="직접치 부족",
-            month="직접치 부족",
-            year="직접치 부족",
-            trend="비교 기준값 직접치 부족",
+            day=UNAVAILABLE,
+            week=UNAVAILABLE,
+            month=UNAVAILABLE,
+            year=UNAVAILABLE,
+            trend=f"비교 기준값 {UNAVAILABLE}",
             verdict="판단 보류",
-            basis="직접치 부족",
+            basis=UNAVAILABLE,
             source_url=url,
+            certainty_status=VERIFIED,
         )
     except Exception as exc:
-        return unavailable_record(label, "소매", source_name, url, f"직접 확인 실패: {exc.__class__.__name__}")
+        return unavailable_record(label, "소매", source_name, url, f"{UNAVAILABLE}: {exc.__class__.__name__}")
 
 
 def unavailable_record(label: str, group: str, source: str, source_url: str, reason: str) -> ReportRecord:
@@ -374,14 +402,15 @@ def unavailable_record(label: str, group: str, source: str, source_url: str, rea
         current=reason,
         query_source=f"{QUERY_TIME} · {source}",
         last_update=reason,
-        day="직접치 부족",
-        week="직접치 부족",
-        month="직접치 부족",
-        year="직접치 부족",
+        day=UNAVAILABLE,
+        week=UNAVAILABLE,
+        month=UNAVAILABLE,
+        year=UNAVAILABLE,
         trend=reason,
         verdict="판단 보류",
-        basis="직접치 부족",
+        basis=UNAVAILABLE,
         source_url=source_url,
+        certainty_status=UNAVAILABLE,
     )
 
 
@@ -441,9 +470,10 @@ def build_records(rate: ExchangeRate) -> list[ReportRecord]:
 
 
 def format_source(record: ReportRecord) -> str:
+    source = record.query_source
     if record.source_url:
-        return f"{record.query_source} ({record.source_url})"
-    return record.query_source
+        source = f"{source} ({record.source_url})"
+    return f"{source} · 상태 {record.certainty_status}"
 
 
 def summarize(records: list[ReportRecord]) -> dict[str, list[str]]:
@@ -459,7 +489,7 @@ def summarize(records: list[ReportRecord]) -> dict[str, list[str]]:
             falling.append(f"{base_label} {pct_text(record.change_pct)}")
         elif record.verdict == "판단 보류":
             pending.append(base_label)
-        if record.year == "직접치 부족":
+        if record.year == UNAVAILABLE:
             yoy.append(base_label)
     return {
         "상승": rising,
@@ -490,9 +520,9 @@ def compact_label(label: str) -> str:
 
 
 def best_label(records: list[ReportRecord], reverse: bool) -> str:
-    comparable = [record for record in records if record.change_pct is not None and record.month != "직접치 부족"]
+    comparable = [record for record in records if record.change_pct is not None and record.month != UNAVAILABLE]
     if not comparable:
-        return "직접치 부족"
+        return UNAVAILABLE
     chosen = max(comparable, key=lambda item: item.change_pct or 0) if reverse else min(comparable, key=lambda item: item.change_pct or 0)
     return chosen.label.split(" (", 1)[0]
 
@@ -513,7 +543,7 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
     def box(label: str, group: str) -> dict[str, str]:
         direction = group_direction(records, group)
         status = {"강함": "상승", "약함": "하락", "보합": "보합"}.get(direction, "보류")
-        basis = "공개 변화율" if status != "보류" else "직접치 부족"
+        basis = "공개 변화율" if status != "보류" else UNAVAILABLE
         return {"label": label, "status": status, "basis": basis}
 
     def card_change_items(verdict: str, limit: int) -> list[str]:
@@ -543,14 +573,14 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
             {
                 "item": wanted,
                 "basis": record.basis,
-                "change": pct_text(record.change_pct) if record.change_pct is not None else "직접치 부족",
+                "change": pct_text(record.change_pct) if record.change_pct is not None else UNAVAILABLE,
                 "verdict": f"{symbol}{record.verdict if record.verdict != '판단 보류' else '보류'}",
             }
         )
         if len(rows) >= 8:
             break
 
-    rate_text = "환율 직접치 부족" if rate.value is None else f"USD/KRW {rate.value:,.2f}"
+    rate_text = f"환율 {UNAVAILABLE}" if rate.value is None else f"USD/KRW {rate.value:,.2f}"
     return {
         "title": "오늘 메모리·저장장치 추세판",
         "meta": f"기준일 {TODAY} · 조회 {QUERY_TIME} · {rate_text}",
@@ -559,7 +589,7 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
         "chips": {
             "상승": card_change_items("강함", 3),
             "하락": card_change_items("약함", 3),
-            "YoY": ["전년 직접치 부족"],
+            "YoY": [f"전년 {UNAVAILABLE}"],
             "보류": [compact_label(item) for item in summaries["보류"][:4]],
         },
         "conclusion": conclusion,
@@ -656,7 +686,7 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
 
     boxes = (card.get("boxes") or [])[:3]
     while len(boxes) < 3:
-        boxes.append({"label": "-", "status": "보류", "basis": "직접치 부족"})
+        boxes.append({"label": "-", "status": "보류", "basis": UNAVAILABLE})
     box_gap = 22
     box_w = (width - margin * 2 - box_gap * 2) // 3
     box_h = 190
@@ -667,7 +697,7 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
         draw.rounded_rectangle((x, y, x + box_w, y + box_h), radius=24, fill=bg, outline=color, width=2)
         draw.text((x + 28, y + 24), str(box.get("label") or "-"), font=box_label_font, fill="#344054")
         draw.text((x + 28, y + 72), status, font=box_status_font, fill=color)
-        draw.text((x + 28, y + 135), str(box.get("basis") or "직접치 부족"), font=meta_font, fill="#475467")
+        draw.text((x + 28, y + 135), str(box.get("basis") or UNAVAILABLE), font=meta_font, fill="#475467")
     y += box_h + 44
 
     draw.text((margin, y), "미니 추세표", font=table_bold_font, fill="#111827")
@@ -717,11 +747,12 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
 
 def build_report(records: list[ReportRecord], rate: ExchangeRate, card_path: Path) -> str:
     if rate.value is None:
-        rate_line = f"USD/KRW: 환율 직접치 부족 (조회 {rate.query_time}, 출처 {rate.source}, 상태 {rate.status})."
+        rate_line = f"USD/KRW: 환율 {UNAVAILABLE} (조회 {rate.query_time}, 출처 {rate.source}, 상태 {rate.status})."
     else:
         rate_line = (
             f"USD/KRW: {rate.value:,.2f}원"
-            f" (조회 {rate.query_time}, 출처 {rate.source}, 원문 Last Update {rate.last_update}, 전일 대비 {pct_text(rate.change_pct)})."
+            f" (조회 {rate.query_time}, 출처 {rate.source}, 원문 Last Update {rate.last_update}, "
+            f"상태 {rate.status}, 전일 대비 {pct_text(rate.change_pct)})."
         )
 
     lines = [
@@ -743,13 +774,13 @@ def build_report(records: list[ReportRecord], rate: ExchangeRate, card_path: Pat
         [
             "",
             "## 3. 상승·하락 요약 4줄",
-            f"상승: {', '.join(summaries['상승'][:6]) if summaries['상승'] else '직접 확인된 상승 항목 부족'}",
-            f"하락: {', '.join(summaries['하락'][:6]) if summaries['하락'] else '직접 확인된 하락 항목 부족'}",
-            "전년: 전년 기준값 직접치 부족",
+            f"상승: {', '.join(summaries['상승'][:6]) if summaries['상승'] else UNAVAILABLE}",
+            f"하락: {', '.join(summaries['하락'][:6]) if summaries['하락'] else UNAVAILABLE}",
+            f"전년: 전년 기준값 {UNAVAILABLE}",
             f"보류: {', '.join(summaries['보류'][:8]) if summaries['보류'] else '없음'}",
             "",
             "## 4. 가격표",
-            "| 항목 | 현재값 | 조회 시각·출처 | 원문 Last Update | 전월 대비 | 전년 대비 | 추세 |",
+            "| 항목 | 현재값 | 조회 시각·출처·상태 | 원문 Last Update | 전월 대비 | 전년 대비 | 추세 |",
             "|---|---:|---|---|---|---|---|",
         ]
     )
@@ -761,7 +792,7 @@ def build_report(records: list[ReportRecord], rate: ExchangeRate, card_path: Pat
 
     conclusion = (
         f"전월 기준으로 가장 강한 쪽은 {best_label(records, True)}, "
-        f"전년 기준으로 가장 구조적으로 강한 쪽은 직접치 부족, "
+        f"전년 기준으로 가장 구조적으로 강한 쪽은 {UNAVAILABLE}, "
         f"가장 약한 쪽은 {best_label(records, False)}, "
         f"DRAM은 {group_direction(records, 'DRAM')}, NAND는 {group_direction(records, 'NAND/SSD')}."
     )
@@ -788,7 +819,7 @@ def main() -> None:
     conclusion = (
         f"DRAM은 {group_direction(records, 'DRAM')}, "
         f"NAND/SSD는 {group_direction(records, 'NAND/SSD')}, "
-        "소매는 비교 기준값 직접치 부족."
+        f"소매는 비교 기준값 {UNAVAILABLE}."
     )
     card = build_card_data(records, rate, conclusion)
     create_card_png(card, card_path)
