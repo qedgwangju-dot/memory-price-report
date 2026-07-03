@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -16,9 +16,12 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[1]
 REPORTS_DIR = ROOT / "reports"
 REPORTS_DIR.mkdir(exist_ok=True)
+SNAPSHOT_DIR = REPORTS_DIR / "snapshots"
+SNAPSHOT_DIR.mkdir(exist_ok=True)
 
 KST = ZoneInfo("Asia/Seoul")
 TODAY = datetime.now(KST).strftime("%Y-%m-%d")
+TODAY_DATE = datetime.now(KST).date()
 QUERY_TIME = datetime.now(KST).strftime("%Y-%m-%d %H:%M KST")
 UNAVAILABLE = "확인 불가"
 DELAYED_OR_CONFLICT = "지연/불일치 있음"
@@ -94,6 +97,11 @@ class ReportRecord:
     change_pct: float | None = None
     source_url: str = ""
     certainty_status: str = VERIFIED
+    numeric_value: float | None = None
+    value_unit: str = ""
+    yoy_pct: float | None = None
+    yoy_status: str = UNAVAILABLE
+    yoy_source: str = ""
 
 
 def normalize_text(value: str) -> str:
@@ -271,6 +279,8 @@ def record_from_row(label: str, group: str, row: SourceRow | None, rate: Exchang
         change_pct=row.change_pct,
         source_url=row.source_url,
         certainty_status=VERIFIED,
+        numeric_value=row.value,
+        value_unit="USD",
     )
 
 
@@ -338,6 +348,8 @@ def record_from_home_price(
         change_pct=change,
         source_url=source_url,
         certainty_status=certainty_status,
+        numeric_value=value if certainty_status == VERIFIED else None,
+        value_unit="USD" if certainty_status == VERIFIED else "",
     )
 
 
@@ -390,6 +402,8 @@ def fetch_danawa_record(label: str, product: dict[str, str]) -> ReportRecord:
             basis=UNAVAILABLE,
             source_url=url,
             certainty_status=VERIFIED,
+            numeric_value=price,
+            value_unit="KRW",
         )
     except Exception as exc:
         return unavailable_record(label, "소매", source_name, url, f"{UNAVAILABLE}: {exc.__class__.__name__}")
@@ -467,6 +481,91 @@ def build_records(rate: ExchangeRate) -> list[ReportRecord]:
     ]
     records.extend(fetch_danawa_record(label, product) for label, product in DANAWA_PRODUCTS.items())
     return records
+
+
+def base_label(record: ReportRecord) -> str:
+    return record.label.split(" (", 1)[0]
+
+
+def previous_year_date(current: date) -> date:
+    try:
+        return current.replace(year=current.year - 1)
+    except ValueError:
+        return current.replace(year=current.year - 1, day=28)
+
+
+def snapshot_path(snapshot_date: date) -> Path:
+    return SNAPSHOT_DIR / f"memory_price_snapshot_{snapshot_date.isoformat()}.json"
+
+
+def load_snapshot(snapshot_date: date) -> dict[str, dict[str, Any]]:
+    path = snapshot_path(snapshot_date)
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    rows = data.get("records")
+    if not isinstance(rows, list):
+        return {}
+    return {str(row.get("label") or ""): row for row in rows if isinstance(row, dict)}
+
+
+def apply_yoy_from_snapshot(records: list[ReportRecord]) -> None:
+    prior_date = previous_year_date(TODAY_DATE)
+    prior_rows = load_snapshot(prior_date)
+    for record in records:
+        record.year = "전년 직접치 부족"
+        record.yoy_status = "전년 직접치 부족"
+        if record.certainty_status != VERIFIED or record.numeric_value is None:
+            continue
+        prior = prior_rows.get(base_label(record))
+        if not prior:
+            continue
+        if prior.get("certainty_status") != VERIFIED:
+            continue
+        if prior.get("value_unit") != record.value_unit:
+            continue
+        prior_value = parse_float(prior.get("numeric_value"))
+        if prior_value is None or prior_value <= 0:
+            continue
+        record.yoy_pct = ((record.numeric_value / prior_value) - 1) * 100
+        record.yoy_status = VERIFIED
+        record.yoy_source = f"{prior_date.isoformat()} 스냅샷"
+        record.year = f"전년 대비 {pct_text(record.yoy_pct)}"
+
+
+def save_snapshot(records: list[ReportRecord], rate: ExchangeRate) -> Path:
+    path = snapshot_path(TODAY_DATE)
+    payload = {
+        "schema_version": 1,
+        "date": TODAY,
+        "query_time": QUERY_TIME,
+        "exchange_rate": {
+            "value": rate.value,
+            "source": rate.source,
+            "source_url": rate.source_url,
+            "last_update": rate.last_update,
+            "status": rate.status,
+        },
+        "records": [
+            {
+                "label": base_label(record),
+                "group": record.group,
+                "numeric_value": record.numeric_value,
+                "value_unit": record.value_unit,
+                "certainty_status": record.certainty_status,
+                "current": record.current,
+                "query_source": record.query_source,
+                "source_url": record.source_url,
+                "last_update": record.last_update,
+            }
+            for record in records
+        ],
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return path
 
 
 def format_source(record: ReportRecord) -> str:
@@ -562,33 +661,59 @@ def group_direction(records: list[ReportRecord], group: str) -> str:
     return "보합"
 
 
-def image_verified_change(record: ReportRecord) -> bool:
-    return record.certainty_status == VERIFIED and record.change_pct is not None
+def image_verified_yoy(record: ReportRecord) -> bool:
+    return record.yoy_status == VERIFIED and record.yoy_pct is not None
 
 
 def image_trend_text(record: ReportRecord) -> str:
-    if not image_verified_change(record):
-        return "직접치 부족"
-    if (record.change_pct or 0) > 0.5:
+    if not image_verified_yoy(record):
+        return "전년 직접치 부족"
+    if (record.yoy_pct or 0) > 0.5:
         direction = "상승"
-    elif (record.change_pct or 0) < -0.5:
+    elif (record.yoy_pct or 0) < -0.5:
         direction = "하락"
     else:
         direction = "보합"
-    return f"{record.basis} {direction}"
+    return f"전년 {direction}"
+
+
+def image_yoy_verdict(record: ReportRecord) -> str:
+    if not image_verified_yoy(record):
+        return "판단 보류"
+    _, verdict, _ = classify(record.yoy_pct)
+    return verdict
+
+
+def group_yoy_direction(records: list[ReportRecord], group: str) -> str:
+    values = [record.yoy_pct for record in records if record.group == group and image_verified_yoy(record)]
+    if not values:
+        return "판단 보류"
+    avg = sum(values) / len(values)
+    if avg > 0.5:
+        return "강함"
+    if avg < -0.5:
+        return "약함"
+    return "보합"
+
+
+def best_yoy_label(records: list[ReportRecord], reverse: bool) -> str:
+    comparable = [record for record in records if image_verified_yoy(record)]
+    if not comparable:
+        return "전년 직접치 부족"
+    chosen = max(comparable, key=lambda item: item.yoy_pct or 0) if reverse else min(comparable, key=lambda item: item.yoy_pct or 0)
+    return base_label(chosen)
 
 
 def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion: str) -> dict[str, Any]:
     def box(label: str, group: str) -> dict[str, str]:
-        verified_records = [record for record in records if record.group == group and image_verified_change(record)]
-        direction = group_direction(verified_records, group)
+        direction = group_yoy_direction(records, group)
         status = {"강함": "상승", "약함": "하락", "보합": "보합"}.get(direction, "보류")
-        basis = "확인값 기준" if status != "보류" else UNAVAILABLE
+        basis = "전년 대비" if status != "보류" else "전년 직접치 부족"
         return {"label": label, "status": status, "basis": basis}
 
     def card_change_items(verdict: str, limit: int) -> list[str]:
-        candidates = [record for record in records if record.verdict == verdict and image_verified_change(record)]
-        candidates.sort(key=lambda record: abs(record.change_pct or 0), reverse=True)
+        candidates = [record for record in records if image_yoy_verdict(record) == verdict and image_verified_yoy(record)]
+        candidates.sort(key=lambda record: abs(record.yoy_pct or 0), reverse=True)
         return [compact_label(record.label) for record in candidates[:limit]]
 
     summaries = summarize(records)
@@ -608,17 +733,17 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
         record = next((item for item in records if item.label.startswith(wanted)), None)
         if record is None:
             continue
-        verified_change = image_verified_change(record)
-        display_verdict = record.verdict if verified_change else "판단 보류"
+        verified_yoy = image_verified_yoy(record)
+        display_verdict = image_yoy_verdict(record)
         symbol = "▲ " if display_verdict == "강함" else "▼ " if display_verdict == "약함" else "— " if display_verdict == "보합" else ""
         rows.append(
             {
                 "item": compact_label(record.label),
                 "trend": image_trend_text(record),
-                "basis": record.basis if verified_change else "직접치 부족",
-                "trend_pct": record.change_pct if verified_change else None,
-                "change": pct_text(record.change_pct) if verified_change else UNAVAILABLE,
-                "source_status": f"{compact_source(record)} · {compact_status(record.certainty_status)}",
+                "basis": "전년" if verified_yoy else "전년 부족",
+                "trend_pct": record.yoy_pct if verified_yoy else None,
+                "change": pct_text(record.yoy_pct) if verified_yoy else "직접치 부족",
+                "source_status": f"{compact_source(record)}+스냅샷 · 확인" if verified_yoy else f"{compact_source(record)} · 전년부족",
                 "verdict": f"{symbol}{display_verdict if display_verdict != '판단 보류' else '보류'}",
             }
         )
@@ -635,8 +760,8 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
         "chips": {
             "상승": card_change_items("강함", 3),
             "하락": card_change_items("약함", 3),
-            "YoY": [f"전년 {UNAVAILABLE}"],
-            "보류": [compact_label(item) for item in summaries["보류"][:4]],
+            "YoY": ["전년 직접치 확인"] if any(image_verified_yoy(record) for record in records) else ["전년 직접치 부족"],
+            "보류": [compact_label(record.label) for record in records if not image_verified_yoy(record)][:4],
         },
         "conclusion": conclusion,
     }
@@ -782,12 +907,12 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
         draw.text((x + 28, y + 135), str(box.get("basis") or UNAVAILABLE), font=meta_font, fill="#475467")
     y += box_h + 44
 
-    draw.text((margin, y), "확인 추세선", font=table_bold_font, fill="#111827")
-    draw.text((margin + 178, y + 4), "공개 변화율 1기간 선, 히스토리 미확인 시 점선", font=meta_font, fill="#667085")
+    draw.text((margin, y), "전년 대비 추세선", font=table_bold_font, fill="#111827")
+    draw.text((margin + 235, y + 4), "전년 직접치 없으면 점선", font=meta_font, fill="#667085")
     y += 52
     header_h = 56
     draw.rounded_rectangle((margin, y, width - margin, y + header_h), radius=14, fill="#111827")
-    headers = [("항목", 0), ("기준", 280), ("추세선", 410), ("변화율", 665), ("출처·상태", 820), ("판정", 1080)]
+    headers = [("항목", 0), ("기준", 280), ("추세선", 410), ("전년 대비", 665), ("출처·상태", 835), ("판정", 1080)]
     for label, offset in headers:
         draw.text((margin + 24 + offset, y + 14), label, font=chip_font, fill="#FFFFFF")
     y += header_h
@@ -803,8 +928,8 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
         trend_color, _ = status_color(trend)
         draw.text((margin + 304, y + 23), str(row.get("basis") or "-")[:8], font=table_font, fill=trend_color)
         draw_trend_line(draw, margin + 430, y + 17, trend_pct if isinstance(trend_pct, (int, float)) else None)
-        draw.text((margin + 689, y + 23), str(row.get("change") or "-")[:12], font=table_bold_font, fill="#111827")
-        draw.text((margin + 844, y + 23), str(row.get("source_status") or "-")[:18], font=meta_font, fill="#475467")
+        draw.text((margin + 689, y + 23), str(row.get("change") or "-")[:10], font=table_bold_font, fill="#111827")
+        draw.text((margin + 859, y + 23), str(row.get("source_status") or "-")[:18], font=meta_font, fill="#475467")
         verdict = str(row.get("verdict") or "보류")
         color, _ = status_color(verdict)
         draw.text((margin + 1104, y + 23), verdict[:14], font=table_bold_font, fill=color)
@@ -858,13 +983,14 @@ def build_report(records: list[ReportRecord], rate: ExchangeRate, card_path: Pat
         )
 
     summaries = summarize(records)
+    yoy_verified = [record for record in records if image_verified_yoy(record)]
     lines.extend(
         [
             "",
             "## 3. 상승·하락 요약 4줄",
             f"상승: {', '.join(summaries['상승'][:6]) if summaries['상승'] else UNAVAILABLE}",
             f"하락: {', '.join(summaries['하락'][:6]) if summaries['하락'] else UNAVAILABLE}",
-            f"전년: 전년 기준값 {UNAVAILABLE}",
+            f"전년: {', '.join(f'{base_label(record)} {pct_text(record.yoy_pct)}' for record in yoy_verified[:6]) if yoy_verified else '전년 직접치 부족'}",
             f"보류: {', '.join(summaries['보류'][:8]) if summaries['보류'] else '없음'}",
             "",
             "## 4. 가격표",
@@ -879,10 +1005,10 @@ def build_report(records: list[ReportRecord], rate: ExchangeRate, card_path: Pat
         )
 
     conclusion = (
-        f"전월 기준으로 가장 강한 쪽은 {best_label(records, True)}, "
-        f"전년 기준으로 가장 구조적으로 강한 쪽은 {UNAVAILABLE}, "
-        f"가장 약한 쪽은 {best_label(records, False)}, "
-        f"DRAM은 {group_direction(records, 'DRAM')}, NAND는 {group_direction(records, 'NAND/SSD')}."
+        f"전년 기준으로 가장 강한 쪽은 {best_yoy_label(records, True)}, "
+        f"가장 약한 쪽은 {best_yoy_label(records, False)}, "
+        f"DRAM 전년 추세는 {group_yoy_direction(records, 'DRAM')}, "
+        f"NAND/SSD 전년 추세는 {group_yoy_direction(records, 'NAND/SSD')}."
     )
     lines.extend(
         [
@@ -901,20 +1027,23 @@ def build_report(records: list[ReportRecord], rate: ExchangeRate, card_path: Pat
 def main() -> None:
     rate = query_usdkrw()
     records = build_records(rate)
+    apply_yoy_from_snapshot(records)
 
     report_path = REPORTS_DIR / f"memory_price_report_{TODAY}.md"
     card_path = REPORTS_DIR / f"memory_price_summary_{TODAY}.png"
     conclusion = (
-        f"DRAM은 {group_direction(records, 'DRAM')}, "
-        f"NAND/SSD는 {group_direction(records, 'NAND/SSD')}, "
-        f"소매는 비교 기준값 {UNAVAILABLE}."
+        f"DRAM 전년 추세는 {group_yoy_direction(records, 'DRAM')}, "
+        f"NAND/SSD 전년 추세는 {group_yoy_direction(records, 'NAND/SSD')}, "
+        f"소매 전년 추세는 {group_yoy_direction(records, '소매')}."
     )
     card = build_card_data(records, rate, conclusion)
     create_card_png(card, card_path)
     report_path.write_text(build_report(records, rate, card_path), encoding="utf-8")
+    snapshot = save_snapshot(records, rate)
 
     print(f"Wrote {report_path.relative_to(ROOT)}")
     print(f"Wrote {card_path.relative_to(ROOT)}")
+    print(f"Wrote {snapshot.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":
