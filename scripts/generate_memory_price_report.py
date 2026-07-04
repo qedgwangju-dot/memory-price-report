@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -29,13 +29,14 @@ DELAYED_OR_CONFLICT = "지연/불일치 있음"
 VERIFIED = "확인"
 STALE_REFERENCE_DAYS = 45
 REQUEST_TIMEOUT_SECONDS = 15
-REQUEST_RETRIES = 2
+REQUEST_RETRIES = 1
 
 DRAMEXCHANGE_HOME = "https://www.dramexchange.com/"
 DRAMEXCHANGE_HOME_PRICE = "https://www.dramexchange.com/Home/HomePrice"
 YAHOO_USDKRW = "https://query1.finance.yahoo.com/v8/finance/chart/USDKRW=X?range=5d&interval=1d"
 DANAWA_PRICE_HISTORY = "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php"
 WAYBACK_CDX = "https://web.archive.org/cdx"
+WAYBACK_AVAILABLE = "https://archive.org/wayback/available"
 
 DANAWA_PRODUCTS = {
     "소매 메모리": {
@@ -109,12 +110,22 @@ class ReportRecord:
     yoy_source: str = ""
     yoy_source_url: str = ""
     yoy_reference: str = ""
+    trend_points: list["TrendPoint"] = field(default_factory=list)
 
 
 @dataclass
 class PriorYearValue:
     value: float
     unit: str
+    source: str
+    source_url: str
+    reference: str
+
+
+@dataclass
+class TrendPoint:
+    label: str
+    value: float
     source: str
     source_url: str
     reference: str
@@ -532,6 +543,27 @@ def previous_year_date(current: date) -> date:
         return current.replace(year=current.year - 1, day=28)
 
 
+def add_months(value: date, months: int) -> date:
+    month_index = value.month - 1 + months
+    year = value.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(value.day, 28)
+    return date(year, month, day)
+
+
+def trend_target_dates(start: date, end: date, steps: int = 6) -> list[date]:
+    if steps <= 1:
+        return [start]
+    total_months = max(1, (end.year - start.year) * 12 + end.month - start.month)
+    targets: list[date] = []
+    for index in range(steps):
+        offset = round(total_months * index / (steps - 1))
+        target = add_months(start, offset)
+        if target < end and target not in targets:
+            targets.append(target)
+    return targets
+
+
 def cdx_date(value: date) -> str:
     return value.strftime("%Y%m%d")
 
@@ -552,6 +584,23 @@ def wayback_kst(timestamp: str) -> str:
 
 def wayback_url(capture: dict[str, str]) -> str:
     return f"https://web.archive.org/web/{capture['timestamp']}id_/{capture['original']}"
+
+
+def available_capture(original_url: str, target: date) -> dict[str, str] | None:
+    try:
+        data = safe_get(
+            WAYBACK_AVAILABLE,
+            params={"url": original_url, "timestamp": cdx_date(target)},
+        ).json()
+    except Exception:
+        return None
+    closest = data.get("archived_snapshots", {}).get("closest") if isinstance(data, dict) else None
+    if not isinstance(closest, dict) or closest.get("available") is not True:
+        return None
+    timestamp = str(closest.get("timestamp") or "")
+    if not timestamp:
+        return None
+    return {"timestamp": timestamp, "original": original_url, "statuscode": str(closest.get("status") or "200"), "digest": ""}
 
 
 def fetch_cdx_captures(url_pattern: str, start: date, end: date, limit: int = 50) -> list[dict[str, str]]:
@@ -591,6 +640,18 @@ def sorted_captures_by_distance(captures: list[dict[str, str]], target: date) ->
         return abs((parsed - target_dt).total_seconds())
 
     return sorted(captures, key=distance)
+
+
+def select_captures_for_targets(captures: list[dict[str, str]], targets: list[date], per_target: int = 2) -> list[dict[str, str]]:
+    selected: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for target in targets:
+        for capture in sorted_captures_by_distance(captures, target)[:per_target]:
+            key = capture.get("timestamp", "") + capture.get("original", "")
+            if key and key not in seen:
+                selected.append(capture)
+                seen.add(key)
+    return selected
 
 
 def add_prior_from_row(
@@ -756,6 +817,199 @@ def fetch_prior_year_values(prior_date: date) -> dict[str, PriorYearValue]:
     return values
 
 
+def trend_point_sort_key(point: TrendPoint) -> str:
+    return point.label
+
+
+def append_current_trend_point(record: ReportRecord) -> None:
+    if record.certainty_status != VERIFIED or record.numeric_value is None:
+        return
+    record.trend_points.append(
+        TrendPoint(
+            label=TODAY_DATE.strftime("%y-%m"),
+            value=record.numeric_value,
+            source=record.query_source,
+            source_url=record.source_url,
+            reference=record.last_update,
+        )
+    )
+
+
+def add_trend_point(
+    mapping: dict[str, list[TrendPoint]],
+    label: str,
+    row: SourceRow | None,
+    capture: dict[str, str],
+) -> None:
+    if row is None:
+        return
+    mapping.setdefault(label, []).append(
+        TrendPoint(
+            label=wayback_kst(capture["timestamp"])[:7],
+            value=row.value,
+            source="Internet Archive DRAMeXchange 공개표 캡처",
+            source_url=wayback_url(capture),
+            reference=f"캡처 {wayback_kst(capture['timestamp'])}, 항목 {row.item}",
+        )
+    )
+
+
+def fetch_dramexchange_spot_trend_points(start: date, end: date) -> dict[str, list[TrendPoint]]:
+    selected: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for target in trend_target_dates(start, end, 4):
+        capture = available_capture(DRAMEXCHANGE_HOME, target)
+        if capture is None:
+            continue
+        key = capture.get("timestamp", "") + capture.get("original", "")
+        if key and key not in seen:
+            selected.append(capture)
+            seen.add(key)
+    mapping: dict[str, list[TrendPoint]] = {}
+    for capture in selected:
+        try:
+            soup = BeautifulSoup(safe_get(wayback_url(capture)).text, "html.parser")
+        except Exception:
+            continue
+        dram_rows = parse_spot_table(soup, "tb_NationalDramSpotPrice")
+        flash_rows = parse_spot_table(soup, "tb_NationalFlashSpotPrice")
+        module_rows = parse_spot_table(soup, "tb_ModuleSpotPrice")
+        if not (dram_rows or flash_rows or module_rows):
+            continue
+        add_trend_point(mapping, "DDR3 칩", find_row(dram_rows, "DDR3"), capture)
+        add_trend_point(mapping, "DDR4 칩", find_row(dram_rows, "DDR4", "2Gx8", "3200"), capture)
+        add_trend_point(mapping, "DDR5 칩", find_row(dram_rows, "DDR5", "2Gx8", "4800"), capture)
+        add_trend_point(mapping, "DDR4 모듈", find_row(module_rows, "DDR4", "UDIMM", "16GB", "3200"), capture)
+        add_trend_point(mapping, "DDR5 모듈", find_row(module_rows, "DDR5", "UDIMM", "16GB"), capture)
+        add_trend_point(mapping, "NAND 웨이퍼", find_row(flash_rows, "TLC", "512Gb"), capture)
+    return mapping
+
+
+def add_home_price_trend_point(
+    mapping: dict[str, list[TrendPoint]],
+    label: str,
+    source_name: str,
+    field: str,
+    keywords: tuple[str, ...],
+    capture: dict[str, str],
+) -> None:
+    rows = fetch_wayback_json(capture)
+    row = find_dict_strict(rows, field, *keywords)
+    if row is None:
+        return
+    last_update = normalized_home_price_last_update(row)
+    value = parse_float(row.get("show_avg", row.get("avg")))
+    if value is None or value <= 0:
+        return
+    mapping.setdefault(label, []).append(
+        TrendPoint(
+            label=last_update[:7] if re.match(r"\d{4}-\d{2}", last_update) else wayback_kst(capture["timestamp"])[:7],
+            value=value,
+            source=f"Internet Archive {source_name} 캡처",
+            source_url=wayback_url(capture),
+            reference=f"원문 {last_update}, 캡처 {wayback_kst(capture['timestamp'])}",
+        )
+    )
+
+
+def fetch_dramexchange_home_price_trend_points(start: date, end: date) -> dict[str, list[TrendPoint]]:
+    specs = [
+        ("DRAM 계약가", "NationalDramContract", "show_name", ("DDR4", "8Gb"), "DRAMeXchange HomePrice NationalDramContract"),
+        ("NAND 계약가", "NationalFlashContract", "show_name", ("NAND",), "DRAMeXchange HomePrice NationalFlashContract"),
+        ("PC-client OEM SSD 계약가", "PCC", "Name", ("1TB",), "DRAMeXchange HomePrice PCC"),
+        ("SSD street price", "SSD", "Series", ("990", "pro"), "DRAMeXchange HomePrice SSD"),
+    ]
+    mapping: dict[str, list[TrendPoint]] = {}
+    targets = trend_target_dates(start, end, 4)
+    for label, source_key, field, keywords, source_name in specs:
+        seen: set[str] = set()
+        for target in targets:
+            captures = fetch_cdx_captures(
+                "www.dramexchange.com/Home/HomePrice*",
+                target - timedelta(days=45),
+                target + timedelta(days=45),
+                80,
+            )
+            source_captures = [
+                capture
+                for capture in captures
+                if f"source={source_key.lower()}" in capture.get("original", "").lower()
+            ]
+            for capture in sorted_captures_by_distance(source_captures, target)[:2]:
+                key = capture.get("timestamp", "") + capture.get("original", "")
+                if key and key in seen:
+                    continue
+                before = len(mapping.get(label, []))
+                add_home_price_trend_point(mapping, label, source_name, field, keywords, capture)
+                if len(mapping.get(label, [])) > before:
+                    seen.add(key)
+                    break
+    return mapping
+
+
+def fetch_danawa_history_points(product: dict[str, str]) -> list[TrendPoint]:
+    product_code = danawa_product_code(product["url"])
+    if product_code is None:
+        return []
+    headers = {
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": product["url"],
+    }
+    try:
+        data = safe_get(DANAWA_PRICE_HISTORY, params={"productCode": product_code}, headers=headers).json()
+    except Exception:
+        return []
+    series = data.get("24") if isinstance(data, dict) else None
+    points = series.get("result") if isinstance(series, dict) else None
+    if not isinstance(points, list):
+        return []
+    result: list[TrendPoint] = []
+    for point in points[-13:]:
+        if not isinstance(point, dict):
+            continue
+        price = parse_float(point.get("minPrice"))
+        label = str(point.get("date") or "")
+        if price is None or price <= 0 or not label:
+            continue
+        result.append(
+            TrendPoint(
+                label=label,
+                value=price,
+                source=f"Danawa 가격추이 24개월 · {product['name']}",
+                source_url=f"{DANAWA_PRICE_HISTORY}?productCode={product_code}",
+                reference=f"{label} 월간 가격추이",
+            )
+        )
+    return result
+
+
+def dedupe_trend_points(points: list[TrendPoint]) -> list[TrendPoint]:
+    seen: dict[str, TrendPoint] = {}
+    for point in sorted(points, key=trend_point_sort_key):
+        seen[point.label] = point
+    return list(seen.values())
+
+
+def apply_trend_points(records: list[ReportRecord]) -> None:
+    start = previous_year_date(TODAY_DATE)
+    trend_sources: dict[str, list[TrendPoint]] = {}
+    for fetcher in (fetch_dramexchange_spot_trend_points,):
+        try:
+            for label, points in fetcher(start, TODAY_DATE).items():
+                trend_sources.setdefault(label, []).extend(points)
+        except Exception:
+            continue
+    for label, product in DANAWA_PRODUCTS.items():
+        trend_sources[label] = fetch_danawa_history_points(product)
+
+    for record in records:
+        if record.certainty_status == VERIFIED and record.numeric_value is not None:
+            record.trend_points = trend_sources.get(base_label(record), [])
+            append_current_trend_point(record)
+            record.trend_points = dedupe_trend_points(record.trend_points)
+
+
 def snapshot_path(snapshot_date: date) -> Path:
     return SNAPSHOT_DIR / f"memory_price_snapshot_{snapshot_date.isoformat()}.json"
 
@@ -845,6 +1099,16 @@ def save_snapshot(records: list[ReportRecord], rate: ExchangeRate) -> Path:
                 "yoy_source": record.yoy_source,
                 "yoy_source_url": record.yoy_source_url,
                 "yoy_reference": record.yoy_reference,
+                "trend_points": [
+                    {
+                        "label": point.label,
+                        "value": point.value,
+                        "source": point.source,
+                        "source_url": point.source_url,
+                        "reference": point.reference,
+                    }
+                    for point in record.trend_points
+                ],
             }
             for record in records
         ],
@@ -923,6 +1187,15 @@ def compact_yoy_source(record: ReportRecord) -> str:
     if "스냅샷" in record.yoy_source:
         return "스냅샷"
     return compact_source(record)
+
+
+def compact_trend_source(record: ReportRecord) -> str:
+    source_text = " ".join(point.source for point in record.trend_points).lower()
+    if "danawa" in source_text:
+        return "Danawa"
+    if "internet archive" in source_text and "dramexchange" in source_text:
+        return "IA+DX"
+    return compact_yoy_source(record)
 
 
 def compact_status(status: str) -> str:
@@ -1039,14 +1312,21 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
         verified_yoy = image_verified_yoy(record)
         display_verdict = image_yoy_verdict(record)
         symbol = "▲ " if display_verdict == "강함" else "▼ " if display_verdict == "약함" else "— " if display_verdict == "보합" else ""
+        series = [
+            {"label": point.label, "value": point.value}
+            for point in record.trend_points
+            if point.value > 0
+        ]
+        has_series = len(series) >= 3
         rows.append(
             {
                 "item": compact_label(record.label),
                 "trend": image_trend_text(record),
-                "basis": "전년" if verified_yoy else "전년 부족",
+                "basis": "12M" if has_series else "시계열 부족",
                 "trend_pct": record.yoy_pct if verified_yoy else None,
+                "series": series if has_series else [],
                 "change": pct_text(record.yoy_pct) if verified_yoy else "직접치 부족",
-                "source_status": f"{compact_yoy_source(record)} · 확인" if verified_yoy else f"{compact_source(record)} · 전년부족",
+                "source_status": f"{compact_trend_source(record)} {len(series)}점 확인" if has_series else f"{compact_source(record)} · 시계열부족",
                 "verdict": f"{symbol}{display_verdict if display_verdict != '판단 보류' else '보류'}",
             }
         )
@@ -1136,7 +1416,15 @@ def list_text(values: object, limit: int = 4) -> str:
     return str(values or "-")
 
 
-def draw_trend_line(draw: ImageDraw.ImageDraw, x: int, y: int, change_pct: float | None, width: int = 230, height: int = 48) -> None:
+def draw_trend_line(
+    draw: ImageDraw.ImageDraw,
+    x: int,
+    y: int,
+    change_pct: float | None,
+    series: list[dict[str, Any]] | None = None,
+    width: int = 230,
+    height: int = 48,
+) -> None:
     top = y
     bottom = y + height
     left = x
@@ -1144,31 +1432,33 @@ def draw_trend_line(draw: ImageDraw.ImageDraw, x: int, y: int, change_pct: float
     mid = y + height // 2
     draw.rounded_rectangle((left, top, right, bottom), radius=10, fill="#F9FAFB", outline="#EAECF0", width=1)
     draw.line((left + 12, mid, right - 12, mid), fill="#D0D5DD", width=2)
-    if change_pct is None:
+    values = [parse_float(point.get("value")) for point in (series or []) if isinstance(point, dict)]
+    values = [value for value in values if value is not None and value > 0]
+    if len(values) < 3:
         dash_y = mid
         for start in range(left + 18, right - 18, 18):
             draw.line((start, dash_y, start + 8, dash_y), fill="#8A5A00", width=3)
         return
 
-    magnitude = min(abs(change_pct), 12.0) / 12.0
-    amplitude = max(4, int((height // 2 - 7) * magnitude))
-    start_x = left + 18
-    end_x = right - 18
-    if change_pct > 0.5:
-        color = "#0F7B4F"
-        start_y = mid + amplitude
-        end_y = mid - amplitude
-    elif change_pct < -0.5:
-        color = "#B42318"
-        start_y = mid - amplitude
-        end_y = mid + amplitude
-    else:
-        color = "#475467"
-        start_y = mid
-        end_y = mid
-    draw.line((start_x, start_y, end_x, end_y), fill=color, width=5)
-    draw.ellipse((start_x - 5, start_y - 5, start_x + 5, start_y + 5), fill=color)
-    draw.ellipse((end_x - 6, end_y - 6, end_x + 6, end_y + 6), fill=color)
+    min_value = min(values)
+    max_value = max(values)
+    span = max(max_value - min_value, max_value * 0.02, 1e-9)
+    usable_w = width - 36
+    usable_h = height - 16
+    coords: list[tuple[int, int]] = []
+    for index, value in enumerate(values):
+        x_pos = left + 18 + round(usable_w * index / (len(values) - 1))
+        y_pos = bottom - 8 - round(((value - min_value) / span) * usable_h)
+        coords.append((x_pos, y_pos))
+
+    for index in range(len(coords) - 1):
+        color = "#0F7B4F" if values[index + 1] >= values[index] else "#B42318"
+        draw.line((coords[index][0], coords[index][1], coords[index + 1][0], coords[index + 1][1]), fill=color, width=4)
+    for x_pos, y_pos in coords:
+        draw.ellipse((x_pos - 3, y_pos - 3, x_pos + 3, y_pos + 3), fill="#344054")
+    end_color = "#0F7B4F" if values[-1] >= values[0] else "#B42318"
+    end_x, end_y = coords[-1]
+    draw.ellipse((end_x - 6, end_y - 6, end_x + 6, end_y + 6), fill=end_color)
 
 
 def create_card_png(card: dict[str, Any], output_path: Path) -> None:
@@ -1210,12 +1500,12 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
         draw.text((x + 28, y + 135), str(box.get("basis") or UNAVAILABLE), font=meta_font, fill="#475467")
     y += box_h + 44
 
-    draw.text((margin, y), "전년 대비 추세선", font=table_bold_font, fill="#111827")
-    draw.text((margin + 235, y + 4), "전년값 직접 조회 없으면 점선", font=meta_font, fill="#667085")
+    draw.text((margin, y), "직접 조회 시계열", font=table_bold_font, fill="#111827")
+    draw.text((margin + 235, y + 4), "3개 이상 직접 포인트 없으면 점선", font=meta_font, fill="#667085")
     y += 52
     header_h = 56
     draw.rounded_rectangle((margin, y, width - margin, y + header_h), radius=14, fill="#111827")
-    headers = [("항목", 0), ("기준", 280), ("추세선", 410), ("전년 대비", 665), ("출처·상태", 835), ("판정", 1080)]
+    headers = [("항목", 0), ("기간", 280), ("추세선", 410), ("전년 대비", 665), ("출처·상태", 835), ("판정", 1080)]
     for label, offset in headers:
         draw.text((margin + 24 + offset, y + 14), label, font=chip_font, fill="#FFFFFF")
     y += header_h
@@ -1230,7 +1520,14 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
         trend_pct = row.get("trend_pct")
         trend_color, _ = status_color(trend)
         draw.text((margin + 304, y + 23), str(row.get("basis") or "-")[:8], font=table_font, fill=trend_color)
-        draw_trend_line(draw, margin + 430, y + 17, trend_pct if isinstance(trend_pct, (int, float)) else None)
+        series = row.get("series")
+        draw_trend_line(
+            draw,
+            margin + 430,
+            y + 17,
+            trend_pct if isinstance(trend_pct, (int, float)) else None,
+            series if isinstance(series, list) else None,
+        )
         draw.text((margin + 689, y + 23), str(row.get("change") or "-")[:10], font=table_bold_font, fill="#111827")
         draw.text((margin + 859, y + 23), str(row.get("source_status") or "-")[:18], font=meta_font, fill="#475467")
         verdict = str(row.get("verdict") or "보류")
@@ -1331,6 +1628,7 @@ def main() -> None:
     rate = query_usdkrw()
     records = build_records(rate)
     apply_yoy(records)
+    apply_trend_points(records)
 
     report_path = REPORTS_DIR / f"memory_price_report_{TODAY}.md"
     card_path = REPORTS_DIR / f"memory_price_summary_{TODAY}.png"
