@@ -1,0 +1,215 @@
+{
+  "schema_version": 1,
+  "date": "2026-07-05",
+  "status": "pass",
+  "issues": [],
+  "thresholds": {
+    "yoy_direction_pct": 0.5,
+    "recent_direction_pct": 0.5,
+    "strong_recent_pct": 20.0
+  },
+  "files": {
+    "report": "reports\\memory_price_report_2026-07-05.md",
+    "image": "reports\\memory_price_summary_2026-07-05.png",
+    "snapshot": "reports\\snapshots\\memory_price_snapshot_2026-07-05.json",
+    "audit": "reports\\audits\\memory_price_audit_2026-07-05.json",
+    "pcpartpicker": "reports\\pcpartpicker\\pcpartpicker_trends_2026-07-05.json"
+  },
+  "checks": {
+    "rows": [
+      {
+        "label": "DDR3",
+        "group": "DRAM",
+        "yoy_pct": 778.5915492957747,
+        "recent_direct_change_pct": 112.82838621630842,
+        "trend_points": 4,
+        "expected_verdict": "강함",
+        "audit_expected": "강함",
+        "audit_actual": "강함",
+        "status": "pass"
+      },
+      {
+        "label": "DDR4",
+        "group": "DRAM",
+        "yoy_pct": 794.94961331146,
+        "recent_direct_change_pct": -1.016083671379886,
+        "trend_points": 4,
+        "expected_verdict": "둔화",
+        "audit_expected": "둔화",
+        "audit_actual": "둔화",
+        "status": "pass"
+      },
+      {
+        "label": "DDR5",
+        "group": "DRAM",
+        "yoy_pct": 667.8019085225403,
+        "recent_direct_change_pct": 19.048469387755105,
+        "trend_points": 4,
+        "expected_verdict": "상승",
+        "audit_expected": "상승",
+        "audit_actual": "상승",
+        "status": "pass"
+      },
+      {
+        "label": "DDR4 모듈",
+        "group": "DRAM",
+        "yoy_pct": null,
+        "recent_direct_change_pct": 21.936625172214196,
+        "trend_points": 2,
+        "expected_verdict": "보류",
+        "audit_expected": "보류",
+        "audit_actual": "not in image table",
+        "status": "pass"
+      },
+      {
+        "label": "DDR5 모듈",
+        "group": "DRAM",
+        "yoy_pct": null,
+        "recent_direct_change_pct": -14.897959183673471,
+        "trend_points": 2,
+        "expected_verdict": "보류",
+        "audit_expected": "보류",
+        "audit_actual": "not in image table",
+        "status": "pass"
+      },
+      {
+        "label": "DRAM 계약",
+        "group": "DRAM",
+        "yoy_pct": 510.2564102564102,
+        "recent_direct_change_pct": 39.99999999999999,
+        "trend_points": 4,
+        "expected_verdict": "강함",
+        "audit_expected": "강함",
+        "audit_actual": "강함",
+        "status": "pass"
+      },
+      {
+        "label": "NAND MLC64Gb",
+        "group": "NAND/SSD",
+        "yoy_pct": 411.9408242338852,
+        "recent_direct_change_pct": 227.5267605633803,
+        "trend_points": 4,
+        "expected_verdict": "강함",
+        "audit_expected": "강함",
+        "audit_actual": "강함",
+        "status": "pass"
+      },
+      {
+        "label": "NAND",
+        "group": "NAND/SSD",
+        "yoy_pct": 806.8764967499144,
+        "recent_direct_change_pct": 180.27067033199407,
+        "trend_points": 4,
+        "expected_verdict": "강함",
+        "audit_expected": "강함",
+        "audit_actual": "강함",
+        "status": "pass"
+      },
+      {
+        "label": "OEM SSD",
+        "group": "NAND/SSD",
+        "yoy_pct": null,
+        "recent_direct_change_pct": null,
+        "trend_points": 0,
+        "expected_verdict": "보류",
+        "audit_expected": "보류",
+        "audit_actual": "보류",
+        "status": "pass"
+      },
+      {
+        "label": "SSD street",
+        "group": "NAND/SSD",
+        "yoy_pct": null,
+        "recent_direct_change_pct": null,
+        "trend_points": 1,
+        "expected_verdict": "보류",
+        "audit_expected": "보류",
+        "audit_actual": "보류",
+        "status": "pass"
+      },
+      {
+        "label": "소매 메모리",
+        "group": "소매",
+        "yoy_pct": 352.8039010797632,
+        "recent_direct_change_pct": 0.0,
+        "trend_points": 14,
+        "expected_verdict": "둔화",
+        "audit_expected": "둔화",
+        "audit_actual": "둔화",
+        "status": "pass"
+      },
+      {
+        "label": "소매 HDD",
+        "group": "소매",
+        "yoy_pct": 144.98537400752193,
+        "recent_direct_change_pct": 2.403982619707845,
+        "trend_points": 14,
+        "expected_verdict": "상승",
+        "audit_expected": "상승",
+        "audit_actual": "상승",
+        "status": "pass"
+      },
+      {
+        "label": "소매 SSD",
+        "group": "소매",
+        "yoy_pct": 150.96624419626053,
+        "recent_direct_change_pct": 1.2632911392405077,
+        "trend_points": 14,
+        "expected_verdict": "상승",
+        "audit_expected": "상승",
+        "audit_actual": "상승",
+        "status": "pass"
+      }
+    ],
+    "groups": [
+      {
+        "group": "DRAM",
+        "expected_status": "혼재",
+        "expected_basis": "강2 상1 둔1 보류2",
+        "audit_status": "혼재",
+        "audit_basis": "강2 상1 둔1 보류2",
+        "status": "pass"
+      },
+      {
+        "group": "NAND/SSD",
+        "expected_status": "일부 상승",
+        "expected_basis": "강2 보류2",
+        "audit_status": "일부 상승",
+        "audit_basis": "강2 보류2",
+        "status": "pass"
+      },
+      {
+        "group": "소매",
+        "expected_status": "혼재",
+        "expected_basis": "상2 둔1",
+        "audit_status": "혼재",
+        "audit_basis": "상2 둔1",
+        "status": "pass"
+      }
+    ],
+    "image": {
+      "path": "reports\\memory_price_summary_2026-07-05.png",
+      "status": "pass",
+      "width": 1400,
+      "height": 2100,
+      "mean": [
+        218.44337789115647,
+        218.42249523809525,
+        216.29043367346938
+      ],
+      "channel_ranges": [
+        240,
+        231,
+        255
+      ],
+      "nonblank": true
+    },
+    "pcpartpicker": {
+      "status": "pass",
+      "fetch_status": "확인",
+      "image_count": 30,
+      "selected_count": 7,
+      "numeric_value_policy": "PCPartPicker Trends HTML exposes rendered PNG chart URLs and titles, not raw numeric time-series values. Pixel-digitized chart values are not used as latest values, YoY inputs, or verdict inputs."
+    }
+  }
+}

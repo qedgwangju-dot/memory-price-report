@@ -36,6 +36,9 @@ jobs:
       - name: Generate report
         run: python scripts/generate_memory_price_report.py
 
+      - name: Cross-check generated report
+        run: python scripts/verify_memory_price_report.py
+
       - name: Upload report artifact
         uses: actions/upload-artifact@v4
         with:
