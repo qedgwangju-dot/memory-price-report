@@ -1281,8 +1281,16 @@ def image_yoy_verdict(record: ReportRecord) -> str:
     return verdict
 
 
-def group_yoy_direction(records: list[ReportRecord], group: str) -> str:
-    values = [record.yoy_pct for record in records if record.group == group and image_verified_yoy(record)]
+def has_direct_trend_series(record: ReportRecord) -> bool:
+    return len([point for point in record.trend_points if point.value > 0]) >= 3
+
+
+def group_yoy_direction(records: list[ReportRecord], group: str, require_series: bool = False) -> str:
+    values = [
+        record.yoy_pct
+        for record in records
+        if record.group == group and image_verified_yoy(record) and (not require_series or has_direct_trend_series(record))
+    ]
     if not values:
         return "판단 보류"
     avg = sum(values) / len(values)
@@ -1302,14 +1310,35 @@ def best_yoy_label(records: list[ReportRecord], reverse: bool) -> str:
 
 
 def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion: str) -> dict[str, Any]:
+    def row_series(record: ReportRecord) -> list[dict[str, Any]]:
+        return [
+            {"label": point.label, "value": point.value}
+            for point in record.trend_points
+            if point.value > 0
+        ]
+
+    def has_trend_series(record: ReportRecord) -> bool:
+        return has_direct_trend_series(record)
+
+    def image_actionable_yoy(record: ReportRecord) -> bool:
+        return image_verified_yoy(record) and has_trend_series(record)
+
+    def image_row_verdict(record: ReportRecord) -> str:
+        if not image_actionable_yoy(record):
+            return "판단 보류"
+        return image_yoy_verdict(record)
+
+    def image_group_direction(group: str) -> str:
+        return group_yoy_direction(records, group, require_series=True)
+
     def box(label: str, group: str) -> dict[str, str]:
-        direction = group_yoy_direction(records, group)
+        direction = image_group_direction(group)
         status = {"강함": "상승", "약함": "하락", "보합": "보합"}.get(direction, "보류")
-        basis = "전년 대비" if status != "보류" else "전년 직접치 부족"
+        basis = "전년+시계열" if status != "보류" else "시계열 직접치 부족"
         return {"label": label, "status": status, "basis": basis}
 
     def card_change_items(verdict: str, limit: int) -> list[str]:
-        candidates = [record for record in records if image_yoy_verdict(record) == verdict and image_verified_yoy(record)]
+        candidates = [record for record in records if image_row_verdict(record) == verdict and image_actionable_yoy(record)]
         candidates.sort(key=lambda record: abs(record.yoy_pct or 0), reverse=True)
         return [compact_label(record.label) for record in candidates[:limit]]
 
@@ -1324,11 +1353,7 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
             record = next((item for item in records if base_label(item).startswith(wanted)), None)
             if record is None:
                 continue
-            points = [
-                {"label": point.label, "value": point.value}
-                for point in record.trend_points
-                if point.value > 0
-            ]
+            points = row_series(record)
             if len(points) >= 3:
                 series.append({"label": compact_label(record.label), "unit": record.value_unit, "points": points})
         return series
@@ -1353,14 +1378,17 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
         if record is None:
             continue
         verified_yoy = image_verified_yoy(record)
-        display_verdict = image_yoy_verdict(record)
+        display_verdict = image_row_verdict(record)
         symbol = "▲ " if display_verdict == "강함" else "▼ " if display_verdict == "약함" else "— " if display_verdict == "보합" else ""
-        series = [
-            {"label": point.label, "value": point.value}
-            for point in record.trend_points
-            if point.value > 0
-        ]
+        series = row_series(record)
         has_series = len(series) >= 3
+        source_status = (
+            f"{compact_trend_source(record)} {len(series)}점 확인"
+            if has_series
+            else f"{compact_yoy_source(record)} 전년만"
+            if verified_yoy
+            else f"{compact_source(record)} 시계열부족"
+        )
         rows.append(
             {
                 "item": compact_label(record.label),
@@ -1369,7 +1397,7 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
                 "trend_pct": record.yoy_pct if verified_yoy else None,
                 "series": series if has_series else [],
                 "change": pct_text(record.yoy_pct) if verified_yoy else "직접치 부족",
-                "source_status": f"{compact_trend_source(record)} {len(series)}점 확인" if has_series else f"{compact_source(record)} · 시계열부족",
+                "source_status": source_status,
                 "verdict": f"{symbol}{display_verdict if display_verdict != '판단 보류' else '보류'}",
             }
         )
@@ -1401,9 +1429,13 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
             "YoY 상승": card_change_items("강함", 3),
             "YoY 하락": card_change_items("약함", 3),
             "단기 하락": short_term_falling_items(4),
-            "보류": [compact_label(record.label) for record in records if not image_verified_yoy(record)][:4],
+            "보류": [compact_label(record.label) for record in records if not image_actionable_yoy(record)][:4],
         },
-        "conclusion": conclusion,
+        "conclusion": (
+            f"DRAM 전년+시계열은 {group_yoy_direction(records, 'DRAM', require_series=True)}, "
+            f"NAND/SSD 전년+시계열은 {group_yoy_direction(records, 'NAND/SSD', require_series=True)}, "
+            f"소매 전년+시계열은 {group_yoy_direction(records, '소매', require_series=True)}."
+        ),
     }
 
 
@@ -1796,8 +1828,11 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
         draw.text((margin + 24, y + 23), str(row.get("item") or "-")[:18], font=table_font, fill="#111827")
         trend = str(row.get("trend") or "보류")
         trend_pct = row.get("trend_pct")
+        basis_text = str(row.get("basis") or "-")[:8]
         trend_color, _ = status_color(trend)
-        draw.text((margin + 304, y + 23), str(row.get("basis") or "-")[:8], font=table_font, fill=trend_color)
+        if "시계열" in basis_text:
+            trend_color = "#8A5A00"
+        draw.text((margin + 304, y + 23), basis_text, font=table_font, fill=trend_color)
         series = row.get("series")
         draw_trend_line(
             draw,
@@ -1885,8 +1920,8 @@ def build_report(records: list[ReportRecord], rate: ExchangeRate, card_path: Pat
     conclusion = (
         f"전년 기준으로 가장 강한 쪽은 {best_yoy_label(records, True)}, "
         f"가장 약한 쪽은 {best_yoy_label(records, False)}, "
-        f"DRAM 전년 추세는 {group_yoy_direction(records, 'DRAM')}, "
-        f"NAND/SSD 전년 추세는 {group_yoy_direction(records, 'NAND/SSD')}."
+        f"DRAM 전년+시계열 판정은 {group_yoy_direction(records, 'DRAM', require_series=True)}, "
+        f"NAND/SSD 전년+시계열 판정은 {group_yoy_direction(records, 'NAND/SSD', require_series=True)}."
     )
     lines.extend(
         [
@@ -1911,9 +1946,9 @@ def main() -> None:
     report_path = REPORTS_DIR / f"memory_price_report_{TODAY}.md"
     card_path = REPORTS_DIR / f"memory_price_summary_{TODAY}.png"
     conclusion = (
-        f"DRAM 전년 추세는 {group_yoy_direction(records, 'DRAM')}, "
-        f"NAND/SSD 전년 추세는 {group_yoy_direction(records, 'NAND/SSD')}, "
-        f"소매 전년 추세는 {group_yoy_direction(records, '소매')}."
+        f"DRAM 전년+시계열 판정은 {group_yoy_direction(records, 'DRAM', require_series=True)}, "
+        f"NAND/SSD 전년+시계열 판정은 {group_yoy_direction(records, 'NAND/SSD', require_series=True)}, "
+        f"소매 전년+시계열 판정은 {group_yoy_direction(records, '소매', require_series=True)}."
     )
     card = build_card_data(records, rate, conclusion)
     create_card_png(card, card_path)
