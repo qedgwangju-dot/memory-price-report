@@ -40,6 +40,7 @@ REQUEST_TIMEOUT_SECONDS = 15
 REQUEST_RETRIES = 1
 IMAGE_TREND_MONTHS = 12
 IMAGE_TREND_POINTS = 4
+RECENT_TREND_THRESHOLD_PCT = 0.5
 MONTH_NAMES = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 DRAMEXCHANGE_HOME = "https://www.dramexchange.com/"
@@ -1457,6 +1458,17 @@ def image_verified_yoy(record: ReportRecord) -> bool:
     return record.yoy_status == VERIFIED and record.yoy_pct is not None
 
 
+def recent_direct_change_pct(record: ReportRecord) -> float | None:
+    points = [point for point in record.trend_points if point.value > 0]
+    if len(points) < 2:
+        return None
+    previous = points[-2].value
+    latest = points[-1].value
+    if previous <= 0:
+        return None
+    return ((latest / previous) - 1) * 100
+
+
 def image_trend_text(record: ReportRecord) -> str:
     if not image_verified_yoy(record):
         return "전년 직접치 부족"
@@ -1472,8 +1484,23 @@ def image_trend_text(record: ReportRecord) -> str:
 def image_yoy_verdict(record: ReportRecord) -> str:
     if not image_verified_yoy(record):
         return "판단 보류"
-    _, verdict, _ = classify(record.yoy_pct)
-    return verdict
+    recent_pct = recent_direct_change_pct(record)
+    if recent_pct is None:
+        return "판단 보류"
+    yoy_pct = record.yoy_pct or 0
+    if yoy_pct > RECENT_TREND_THRESHOLD_PCT:
+        if recent_pct > RECENT_TREND_THRESHOLD_PCT:
+            return "강함"
+        return "둔화"
+    if yoy_pct < -RECENT_TREND_THRESHOLD_PCT:
+        if recent_pct > RECENT_TREND_THRESHOLD_PCT:
+            return "회복"
+        return "약함"
+    if recent_pct > RECENT_TREND_THRESHOLD_PCT:
+        return "상승"
+    if recent_pct < -RECENT_TREND_THRESHOLD_PCT:
+        return "약함"
+    return "보합"
 
 
 def has_direct_trend_series(record: ReportRecord) -> bool:
@@ -1481,17 +1508,30 @@ def has_direct_trend_series(record: ReportRecord) -> bool:
 
 
 def group_yoy_direction(records: list[ReportRecord], group: str, require_series: bool = False) -> str:
-    values = [
-        record.yoy_pct
+    comparable = [
+        record
         for record in records
         if record.group == group and image_verified_yoy(record) and (not require_series or has_direct_trend_series(record))
     ]
-    if not values:
+    if not comparable:
         return "판단 보류"
-    avg = sum(values) / len(values)
-    if avg > 0.5:
-        return "강함"
-    if avg < -0.5:
+    yoy_avg = sum(record.yoy_pct or 0 for record in comparable) / len(comparable)
+    recent_values = [recent_direct_change_pct(record) for record in comparable]
+    recent_values = [value for value in recent_values if value is not None]
+    if not recent_values:
+        return "판단 보류"
+    recent_avg = sum(recent_values) / len(recent_values)
+    if yoy_avg > RECENT_TREND_THRESHOLD_PCT:
+        if recent_avg > RECENT_TREND_THRESHOLD_PCT:
+            return "강함"
+        return "둔화"
+    if yoy_avg < -RECENT_TREND_THRESHOLD_PCT:
+        if recent_avg > RECENT_TREND_THRESHOLD_PCT:
+            return "회복"
+        return "약함"
+    if recent_avg > RECENT_TREND_THRESHOLD_PCT:
+        return "상승"
+    if recent_avg < -RECENT_TREND_THRESHOLD_PCT:
         return "약함"
     return "보합"
 
@@ -1542,18 +1582,29 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
 
     def box(label: str, group: str) -> dict[str, str]:
         direction = image_group_direction(group)
-        status = {"강함": "상승", "약함": "하락", "보합": "보합"}.get(direction, "보류")
-        basis = "전년+시계열" if status != "보류" else "시계열 직접치 부족"
+        status = {"강함": "상승", "둔화": "둔화", "회복": "회복", "약함": "하락", "보합": "보합", "상승": "상승"}.get(direction, "보류")
+        basis = "전년+최근" if status != "보류" else "시계열 직접치 부족"
         return {"label": label, "status": status, "basis": basis}
 
-    def card_change_items(verdict: str, limit: int) -> list[str]:
-        candidates = [record for record in records if image_row_verdict(record) == verdict and image_actionable_yoy(record)]
+    def yoy_change_items(rising: bool, limit: int) -> list[str]:
+        candidates = [
+            record
+            for record in records
+            if image_actionable_yoy(record)
+            and ((record.yoy_pct or 0) > RECENT_TREND_THRESHOLD_PCT if rising else (record.yoy_pct or 0) < -RECENT_TREND_THRESHOLD_PCT)
+        ]
         candidates.sort(key=lambda record: abs(record.yoy_pct or 0), reverse=True)
         return [compact_label(record.label) for record in candidates[:limit]]
 
-    def short_term_falling_items(limit: int) -> list[str]:
-        candidates = [record for record in records if record.change_pct is not None and record.change_pct < 0]
-        candidates.sort(key=lambda record: record.change_pct or 0)
+    def recent_softening_items(limit: int) -> list[str]:
+        candidates = [
+            record
+            for record in records
+            if image_actionable_yoy(record)
+            and (recent_direct_change_pct(record) is not None)
+            and (recent_direct_change_pct(record) or 0) <= RECENT_TREND_THRESHOLD_PCT
+        ]
+        candidates.sort(key=lambda record: recent_direct_change_pct(record) or 0)
         return [compact_label(record.label) for record in candidates[:limit]]
 
     def chart_series(wanted_labels: list[str]) -> list[dict[str, Any]]:
@@ -1588,7 +1639,15 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
             continue
         verified_yoy = image_verified_yoy(record)
         display_verdict = image_row_verdict(record)
-        symbol = "▲ " if display_verdict == "강함" else "▼ " if display_verdict == "약함" else "— " if display_verdict == "보합" else ""
+        symbol = (
+            "▲ "
+            if display_verdict in {"강함", "상승", "회복"}
+            else "▼ "
+            if display_verdict == "약함"
+            else "→ "
+            if display_verdict in {"보합", "둔화"}
+            else ""
+        )
         series = row_series(record)
         has_series = len(series) >= 3
         source_status = row_source_status(record, has_series, verified_yoy, len(series))
@@ -1629,15 +1688,15 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
         ],
         "rows": rows,
         "chips": {
-            "YoY 상승": card_change_items("강함", 3),
-            "YoY 하락": card_change_items("약함", 3),
-            "단기 하락": short_term_falling_items(4),
+            "YoY 상승": yoy_change_items(True, 3),
+            "YoY 하락": yoy_change_items(False, 3),
+            "최근 둔화": recent_softening_items(4),
             "보류": [compact_label(record.label) for record in records if not image_actionable_yoy(record)][:4],
         },
         "conclusion": (
-            f"DRAM 전년+시계열은 {group_yoy_direction(records, 'DRAM', require_series=True)}, "
-            f"NAND/SSD 전년+시계열은 {group_yoy_direction(records, 'NAND/SSD', require_series=True)}, "
-            f"소매 전년+시계열은 {group_yoy_direction(records, '소매', require_series=True)}."
+            f"DRAM 전년+최근은 {group_yoy_direction(records, 'DRAM', require_series=True)}, "
+            f"NAND/SSD 전년+최근은 {group_yoy_direction(records, 'NAND/SSD', require_series=True)}, "
+            f"소매 전년+최근은 {group_yoy_direction(records, '소매', require_series=True)}."
         ),
     }
 
@@ -1703,10 +1762,12 @@ def draw_wrapped(
 
 
 def status_color(status: str) -> tuple[str, str]:
-    if "상승" in status or "강함" in status or "▲" in status:
+    if "상승" in status or "강함" in status or "회복" in status or "▲" in status:
         return "#0F7B4F", "#E8F6EF"
     if "하락" in status or "약함" in status or "▼" in status:
         return "#B42318", "#FDECEC"
+    if "둔화" in status:
+        return "#8A5A00", "#FFF4D6"
     if "보합" in status or "—" in status:
         return "#475467", "#F2F4F7"
     return "#8A5A00", "#FFF4D6"
@@ -2025,7 +2086,7 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
     y += box_h + 44
 
     draw.text((margin, y), "직접 조회 시계열", font=table_bold_font, fill="#111827")
-    draw.text((margin + 235, y + 4), "3개 이상 직접 포인트 없으면 점선", font=meta_font, fill="#667085")
+    draw.text((margin + 235, y + 4), "판정은 전년 대비와 최근 직접 구간을 함께 반영", font=meta_font, fill="#667085")
     y += 52
     header_h = 56
     draw.rounded_rectangle((margin, y, width - margin, y + header_h), radius=14, fill="#111827")
@@ -2064,7 +2125,7 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
     y += 24
 
     chips = card.get("chips") or {}
-    chip_labels = ["YoY 상승", "YoY 하락", "단기 하락", "보류"]
+    chip_labels = ["YoY 상승", "YoY 하락", "최근 둔화", "보류"]
     chip_w = (width - margin * 2 - 24) // 2
     chip_h = 110
     for i, label in enumerate(chip_labels):
@@ -2134,8 +2195,8 @@ def build_report(records: list[ReportRecord], rate: ExchangeRate, card_path: Pat
     conclusion = (
         f"전년 기준으로 가장 강한 쪽은 {best_yoy_label(records, True)}, "
         f"가장 약한 쪽은 {best_yoy_label(records, False)}, "
-        f"DRAM 전년+시계열 판정은 {group_yoy_direction(records, 'DRAM', require_series=True)}, "
-        f"NAND/SSD 전년+시계열 판정은 {group_yoy_direction(records, 'NAND/SSD', require_series=True)}."
+        f"DRAM 전년+최근 판정은 {group_yoy_direction(records, 'DRAM', require_series=True)}, "
+        f"NAND/SSD 전년+최근 판정은 {group_yoy_direction(records, 'NAND/SSD', require_series=True)}."
     )
     lines.extend(
         [
@@ -2161,9 +2222,9 @@ def main() -> None:
     report_path = REPORTS_DIR / f"memory_price_report_{TODAY}.md"
     card_path = REPORTS_DIR / f"memory_price_summary_{TODAY}.png"
     conclusion = (
-        f"DRAM 전년+시계열 판정은 {group_yoy_direction(records, 'DRAM', require_series=True)}, "
-        f"NAND/SSD 전년+시계열 판정은 {group_yoy_direction(records, 'NAND/SSD', require_series=True)}, "
-        f"소매 전년+시계열 판정은 {group_yoy_direction(records, '소매', require_series=True)}."
+        f"DRAM 전년+최근 판정은 {group_yoy_direction(records, 'DRAM', require_series=True)}, "
+        f"NAND/SSD 전년+최근 판정은 {group_yoy_direction(records, 'NAND/SSD', require_series=True)}, "
+        f"소매 전년+최근 판정은 {group_yoy_direction(records, '소매', require_series=True)}."
     )
     card = build_card_data(records, rate, conclusion)
     create_card_png(card, card_path)
