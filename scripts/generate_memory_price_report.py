@@ -35,8 +35,8 @@ VERIFIED = "확인"
 STALE_REFERENCE_DAYS = 45
 REQUEST_TIMEOUT_SECONDS = 15
 REQUEST_RETRIES = 1
-IMAGE_TREND_MONTHS = 18
-IMAGE_TREND_POINTS = 7
+IMAGE_TREND_MONTHS = 12
+IMAGE_TREND_POINTS = 4
 MONTH_NAMES = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 DRAMEXCHANGE_HOME = "https://www.dramexchange.com/"
@@ -1489,9 +1489,22 @@ def draw_trend_line(
     mid = y + height // 2
     draw.rounded_rectangle((left, top, right, bottom), radius=10, fill="#F9FAFB", outline="#EAECF0", width=1)
     draw.line((left + 12, mid, right - 12, mid), fill="#D0D5DD", width=2)
-    values = [parse_float(point.get("value")) for point in (series or []) if isinstance(point, dict)]
-    values = [value for value in values if value is not None and value > 0]
-    if len(values) < 3:
+    parsed_points: list[tuple[int, float]] = []
+    fallback_index = 0
+    for point in series or []:
+        if not isinstance(point, dict):
+            continue
+        value = parse_float(point.get("value"))
+        if value is None or value <= 0:
+            continue
+        idx = month_index(str(point.get("label") or ""))
+        if idx is None:
+            idx = fallback_index
+        parsed_points.append((idx, value))
+        fallback_index += 1
+    parsed_points = sorted(dict(parsed_points).items())
+    values = [value for _, value in parsed_points]
+    if len(parsed_points) < 3:
         dash_y = mid
         for start in range(left + 18, right - 18, 18):
             draw.line((start, dash_y, start + 8, dash_y), fill="#8A5A00", width=3)
@@ -1500,11 +1513,14 @@ def draw_trend_line(
     min_value = min(values)
     max_value = max(values)
     span = max(max_value - min_value, max_value * 0.02, 1e-9)
+    min_index = min(index for index, _ in parsed_points)
+    max_index = max(index for index, _ in parsed_points)
+    index_span = max(1, max_index - min_index)
     usable_w = width - 36
     usable_h = height - 16
     coords: list[tuple[int, int]] = []
-    for index, value in enumerate(values):
-        x_pos = left + 18 + round(usable_w * index / (len(values) - 1))
+    for index, value in parsed_points:
+        x_pos = left + 18 + round(usable_w * (index - min_index) / index_span)
         y_pos = bottom - 8 - round(((value - min_value) / span) * usable_h)
         coords.append((x_pos, y_pos))
 
@@ -1725,55 +1741,97 @@ def draw_price_chart(
 
 
 def create_card_png(card: dict[str, Any], output_path: Path) -> None:
-    width, height = 1600, 1860
-    image = Image.new("RGB", (width, height), "#FFFFFF")
+    width, height = 1400, 2100
+    image = Image.new("RGB", (width, height), "#F6F7F9")
     draw = ImageDraw.Draw(image)
 
-    title_font = font(44, bold=True)
-    meta_font = font(24)
-    note_font = font(22)
-    conclusion_font = font(27, bold=True)
-    chart_title_font = font(37, bold=True)
-    axis_font = font(20)
-    legend_font = font(22, bold=True)
+    title_font = font(58, bold=True)
+    meta_font = font(25)
+    box_label_font = font(30, bold=True)
+    box_status_font = font(42, bold=True)
+    table_font = font(26)
+    table_bold_font = font(28, bold=True)
+    chip_font = font(25, bold=True)
+    conclusion_font = font(30, bold=True)
 
-    margin = 78
-    y = 54
-    draw.text((margin, y), "Memory price trends", font=title_font, fill="#071225")
-    y += 60
-    y = draw_wrapped(draw, (margin, y), card.get("meta") or f"기준일 {TODAY} · 조회 {QUERY_TIME}", meta_font, "#5F6368", width - margin * 2)
-    y += 18
-    rule = (
-        f"전년 대비 판단은 익일 기준 전년 직접치만 사용 · "
-        f"추세선은 최근 {IMAGE_TREND_MONTHS}개월 직접 조회 포인트만 표시 · "
-        "추정/보간/이전 보고서값 미사용"
-    )
-    y = draw_wrapped(draw, (margin, y), rule, note_font, "#111827", width - margin * 2)
-    y += 34
+    margin = 70
+    draw.rounded_rectangle((40, 40, width - 40, height - 40), radius=36, fill="#FFFFFF", outline="#E4E7EC", width=2)
+    y = 90
+    draw.text((margin, y), card.get("title") or "오늘 메모리·저장장치 추세판", font=title_font, fill="#111827")
+    y += 78
+    y = draw_wrapped(draw, (margin, y), card.get("meta") or f"기준일 {TODAY} · 조회 {QUERY_TIME}", meta_font, "#667085", width - margin * 2)
+    y += 30
 
-    charts = (card.get("charts") or [])[:2]
-    chart_h = 610
-    for chart in charts:
-        y = draw_price_chart(draw, chart, margin, y, width - margin * 2, chart_h, chart_title_font, axis_font, legend_font)
+    boxes = (card.get("boxes") or [])[:3]
+    while len(boxes) < 3:
+        boxes.append({"label": "-", "status": "보류", "basis": UNAVAILABLE})
+    box_gap = 22
+    box_w = (width - margin * 2 - box_gap * 2) // 3
+    box_h = 190
+    for i, box in enumerate(boxes):
+        x = margin + i * (box_w + box_gap)
+        status = str(box.get("status") or "보류")
+        color, bg = status_color(status)
+        draw.rounded_rectangle((x, y, x + box_w, y + box_h), radius=24, fill=bg, outline=color, width=2)
+        draw.text((x + 28, y + 24), str(box.get("label") or "-"), font=box_label_font, fill="#344054")
+        draw.text((x + 28, y + 72), status, font=box_status_font, fill=color)
+        draw.text((x + 28, y + 135), str(box.get("basis") or UNAVAILABLE), font=meta_font, fill="#475467")
+    y += box_h + 44
+
+    draw.text((margin, y), "직접 조회 시계열", font=table_bold_font, fill="#111827")
+    draw.text((margin + 235, y + 4), "3개 이상 직접 포인트 없으면 점선", font=meta_font, fill="#667085")
+    y += 52
+    header_h = 56
+    draw.rounded_rectangle((margin, y, width - margin, y + header_h), radius=14, fill="#111827")
+    headers = [("항목", 0), ("기간", 280), ("추세선", 410), ("전년 대비", 665), ("출처·상태", 835), ("판정", 1080)]
+    for label, offset in headers:
+        draw.text((margin + 24 + offset, y + 14), label, font=chip_font, fill="#FFFFFF")
+    y += header_h
+
+    rows = (card.get("rows") or [])[:11]
+    row_h = 82
+    for idx, row in enumerate(rows):
+        bg = "#FFFFFF" if idx % 2 == 0 else "#F9FAFB"
+        draw.rectangle((margin, y, width - margin, y + row_h), fill=bg)
+        draw.text((margin + 24, y + 23), str(row.get("item") or "-")[:18], font=table_font, fill="#111827")
+        trend = str(row.get("trend") or "보류")
+        trend_pct = row.get("trend_pct")
+        trend_color, _ = status_color(trend)
+        draw.text((margin + 304, y + 23), str(row.get("basis") or "-")[:8], font=table_font, fill=trend_color)
+        series = row.get("series")
+        draw_trend_line(
+            draw,
+            margin + 430,
+            y + 17,
+            trend_pct if isinstance(trend_pct, (int, float)) else None,
+            series if isinstance(series, list) else None,
+        )
+        draw.text((margin + 689, y + 23), str(row.get("change") or "-")[:10], font=table_bold_font, fill="#111827")
+        draw.text((margin + 859, y + 23), str(row.get("source_status") or "-")[:18], font=meta_font, fill="#475467")
+        verdict = str(row.get("verdict") or "보류")
+        color, _ = status_color(verdict)
+        draw.text((margin + 1104, y + 23), verdict[:14], font=table_bold_font, fill=color)
+        y += row_h
+    y += 24
 
     chips = card.get("chips") or {}
-    summary = (
-        f"YoY 상승: {list_text(chips.get('YoY 상승'), 4)}   "
-        f"YoY 하락: {list_text(chips.get('YoY 하락'), 4)}   "
-        f"보류: {list_text(chips.get('보류'), 5)}"
-    )
-    y += 10
-    draw.text((margin, y), summary, font=note_font, fill="#111827")
-    y += 42
-    draw.text(
-        (margin, y),
-        "* Only directly verified source points are plotted. Missing, delayed, conflicting, or access-limited values are not estimated.",
-        font=note_font,
-        fill="#111827",
-    )
-    y += 42
+    chip_labels = ["YoY 상승", "YoY 하락", "단기 하락", "보류"]
+    chip_w = (width - margin * 2 - 24) // 2
+    chip_h = 110
+    for i, label in enumerate(chip_labels):
+        x = margin + (i % 2) * (chip_w + 24)
+        cy = y + (i // 2) * (chip_h + 20)
+        color, bg = status_color(label)
+        draw.rounded_rectangle((x, cy, x + chip_w, cy + chip_h), radius=18, fill=bg, outline=color, width=2)
+        draw.text((x + 22, cy + 18), label, font=chip_font, fill=color)
+        label_width = draw.textbbox((0, 0), label, font=chip_font)[2]
+        list_x = x + 22 + label_width + 28
+        draw_wrapped(draw, (list_x, cy + 18), list_text(chips.get(label), limit=4), meta_font, "#344054", x + chip_w - list_x - 22, line_gap=2)
+    y += chip_h * 2 + 70
+
     conclusion = card.get("conclusion") or "직접 확인 가능한 핵심값 기준으로 판단한다."
-    draw_wrapped(draw, (margin, y), conclusion, conclusion_font, "#071225", width - margin * 2, line_gap=6)
+    draw.rounded_rectangle((margin, y, width - margin, height - 95), radius=20, fill="#111827")
+    draw_wrapped(draw, (margin + 30, y + 28), conclusion, conclusion_font, "#FFFFFF", width - margin * 2 - 60, line_gap=8)
 
     image.save(output_path)
 
