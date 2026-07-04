@@ -1507,6 +1507,53 @@ def has_direct_trend_series(record: ReportRecord) -> bool:
     return len([point for point in record.trend_points if point.value > 0]) >= 3
 
 
+def image_actionable_yoy(record: ReportRecord) -> bool:
+    return image_verified_yoy(record) and has_direct_trend_series(record)
+
+
+def image_group_status(records: list[ReportRecord], group: str) -> dict[str, str]:
+    counts = {
+        "강함": 0,
+        "상승": 0,
+        "회복": 0,
+        "둔화": 0,
+        "보합": 0,
+        "약함": 0,
+        "보류": 0,
+    }
+    group_records = [record for record in records if record.group == group]
+    for record in group_records:
+        if not image_actionable_yoy(record):
+            counts["보류"] += 1
+            continue
+        verdict = image_yoy_verdict(record)
+        counts[verdict if verdict in counts else "보류"] += 1
+
+    strong_count = counts["강함"] + counts["상승"] + counts["회복"]
+    soft_count = counts["둔화"] + counts["보합"] + counts["약함"]
+    pending_count = counts["보류"]
+    if not group_records or (strong_count == 0 and soft_count == 0):
+        status = "보류"
+    elif soft_count > 0:
+        status = "혼재" if strong_count > 0 else "둔화"
+    elif pending_count > 0:
+        status = "일부 상승"
+    else:
+        status = "상승"
+
+    labels = [
+        ("강함", "강"),
+        ("상승", "상"),
+        ("회복", "회복"),
+        ("둔화", "둔"),
+        ("보합", "보합"),
+        ("약함", "약"),
+        ("보류", "보류"),
+    ]
+    basis = " ".join(f"{short}{counts[key]}" for key, short in labels if counts[key])
+    return {"status": status, "basis": basis or "직접치 부족"}
+
+
 def group_yoy_direction(records: list[ReportRecord], group: str, require_series: bool = False) -> str:
     comparable = [
         record
@@ -1552,19 +1599,10 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
             if point.value > 0
         ]
 
-    def has_trend_series(record: ReportRecord) -> bool:
-        return has_direct_trend_series(record)
-
-    def image_actionable_yoy(record: ReportRecord) -> bool:
-        return image_verified_yoy(record) and has_trend_series(record)
-
     def image_row_verdict(record: ReportRecord) -> str:
         if not image_actionable_yoy(record):
             return "판단 보류"
         return image_yoy_verdict(record)
-
-    def image_group_direction(group: str) -> str:
-        return group_yoy_direction(records, group, require_series=True)
 
     def row_source_status(record: ReportRecord, has_series: bool, verified_yoy: bool, series_count: int) -> str:
         if has_series:
@@ -1581,10 +1619,8 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
         return f"{compact_source(record)} 시계열부족"
 
     def box(label: str, group: str) -> dict[str, str]:
-        direction = image_group_direction(group)
-        status = {"강함": "상승", "둔화": "둔화", "회복": "회복", "약함": "하락", "보합": "보합", "상승": "상승"}.get(direction, "보류")
-        basis = "전년+최근" if status != "보류" else "시계열 직접치 부족"
-        return {"label": label, "status": status, "basis": basis}
+        summary = image_group_status(records, group)
+        return {"label": label, "status": summary["status"], "basis": summary["basis"]}
 
     def yoy_change_items(rising: bool, limit: int) -> list[str]:
         candidates = [
@@ -1666,12 +1702,18 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
         if len(rows) >= 11:
             break
 
+    group_boxes = [box("DRAM", "DRAM"), box("NAND/SSD", "NAND/SSD"), box("소매", "소매")]
+    group_summary = {
+        "DRAM": group_boxes[0],
+        "NAND/SSD": group_boxes[1],
+        "소매": group_boxes[2],
+    }
     rate_status = rate.status if rate.value is None else VERIFIED
     rate_text = f"환율 {UNAVAILABLE} · Yahoo · {rate_status}" if rate.value is None else f"USD/KRW {rate.value:,.2f} · Yahoo · {rate_status}"
     return {
         "title": "오늘 메모리·저장장치 추세판",
         "meta": f"기준일 {TODAY} · 조회 {QUERY_TIME} · {rate_text}",
-        "boxes": [box("DRAM", "DRAM"), box("NAND/SSD", "NAND/SSD"), box("소매", "소매")],
+        "boxes": group_boxes,
         "charts": [
             {
                 "title": f"DRAM spot chips (Average price in USD over last {IMAGE_TREND_MONTHS} months)",
@@ -1694,9 +1736,9 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
             "보류": [compact_label(record.label) for record in records if not image_actionable_yoy(record)][:4],
         },
         "conclusion": (
-            f"DRAM 전년+최근은 {group_yoy_direction(records, 'DRAM', require_series=True)}, "
-            f"NAND/SSD 전년+최근은 {group_yoy_direction(records, 'NAND/SSD', require_series=True)}, "
-            f"소매 전년+최근은 {group_yoy_direction(records, '소매', require_series=True)}."
+            f"DRAM {group_summary['DRAM']['status']}({group_summary['DRAM']['basis']}), "
+            f"NAND/SSD {group_summary['NAND/SSD']['status']}({group_summary['NAND/SSD']['basis']}), "
+            f"소매 {group_summary['소매']['status']}({group_summary['소매']['basis']})."
         ),
     }
 
@@ -1762,12 +1804,12 @@ def draw_wrapped(
 
 
 def status_color(status: str) -> tuple[str, str]:
+    if "혼재" in status or "일부" in status or "둔화" in status:
+        return "#8A5A00", "#FFF4D6"
     if "상승" in status or "강함" in status or "회복" in status or "▲" in status:
         return "#0F7B4F", "#E8F6EF"
     if "하락" in status or "약함" in status or "▼" in status:
         return "#B42318", "#FDECEC"
-    if "둔화" in status:
-        return "#8A5A00", "#FFF4D6"
     if "보합" in status or "—" in status:
         return "#475467", "#F2F4F7"
     return "#8A5A00", "#FFF4D6"
@@ -2192,11 +2234,15 @@ def build_report(records: list[ReportRecord], rate: ExchangeRate, card_path: Pat
             f"{record.month} | {record.year} | {record.trend} |"
         )
 
+    dram_group = image_group_status(records, "DRAM")
+    nand_group = image_group_status(records, "NAND/SSD")
+    retail_group = image_group_status(records, "소매")
     conclusion = (
         f"전년 기준으로 가장 강한 쪽은 {best_yoy_label(records, True)}, "
         f"가장 약한 쪽은 {best_yoy_label(records, False)}, "
-        f"DRAM 전년+최근 판정은 {group_yoy_direction(records, 'DRAM', require_series=True)}, "
-        f"NAND/SSD 전년+최근 판정은 {group_yoy_direction(records, 'NAND/SSD', require_series=True)}."
+        f"DRAM 전년+최근 판정은 {dram_group['status']}({dram_group['basis']}), "
+        f"NAND/SSD 전년+최근 판정은 {nand_group['status']}({nand_group['basis']}), "
+        f"소매 전년+최근 판정은 {retail_group['status']}({retail_group['basis']})."
     )
     lines.extend(
         [
@@ -2221,10 +2267,13 @@ def main() -> None:
 
     report_path = REPORTS_DIR / f"memory_price_report_{TODAY}.md"
     card_path = REPORTS_DIR / f"memory_price_summary_{TODAY}.png"
+    dram_group = image_group_status(records, "DRAM")
+    nand_group = image_group_status(records, "NAND/SSD")
+    retail_group = image_group_status(records, "소매")
     conclusion = (
-        f"DRAM 전년+최근 판정은 {group_yoy_direction(records, 'DRAM', require_series=True)}, "
-        f"NAND/SSD 전년+최근 판정은 {group_yoy_direction(records, 'NAND/SSD', require_series=True)}, "
-        f"소매 전년+최근 판정은 {group_yoy_direction(records, '소매', require_series=True)}."
+        f"DRAM 전년+최근 판정은 {dram_group['status']}({dram_group['basis']}), "
+        f"NAND/SSD 전년+최근 판정은 {nand_group['status']}({nand_group['basis']}), "
+        f"소매 전년+최근 판정은 {retail_group['status']}({retail_group['basis']})."
     )
     card = build_card_data(records, rate, conclusion)
     create_card_png(card, card_path)
