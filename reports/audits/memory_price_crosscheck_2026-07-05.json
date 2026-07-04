@@ -9,11 +9,11 @@
     "strong_recent_pct": 20.0
   },
   "files": {
-    "report": "reports\\memory_price_report_2026-07-05.md",
-    "image": "reports\\memory_price_summary_2026-07-05.png",
-    "snapshot": "reports\\snapshots\\memory_price_snapshot_2026-07-05.json",
-    "audit": "reports\\audits\\memory_price_audit_2026-07-05.json",
-    "pcpartpicker": "reports\\pcpartpicker\\pcpartpicker_trends_2026-07-05.json"
+    "report": "reports/memory_price_report_2026-07-05.md",
+    "image": "reports/memory_price_summary_2026-07-05.png",
+    "snapshot": "reports/snapshots/memory_price_snapshot_2026-07-05.json",
+    "audit": "reports/audits/memory_price_audit_2026-07-05.json",
+    "pcpartpicker": "reports/pcpartpicker/pcpartpicker_trends_2026-07-05.json"
   },
   "checks": {
     "rows": [
@@ -21,7 +21,7 @@
         "label": "DDR3",
         "group": "DRAM",
         "yoy_pct": 778.5915492957747,
-        "recent_direct_change_pct": 112.82838621630842,
+        "recent_direct_change_pct": 106.62471016893011,
         "trend_points": 4,
         "expected_verdict": "강함",
         "audit_expected": "강함",
@@ -32,7 +32,7 @@
         "label": "DDR4",
         "group": "DRAM",
         "yoy_pct": 794.94961331146,
-        "recent_direct_change_pct": -1.016083671379886,
+        "recent_direct_change_pct": -1.3701637481274953,
         "trend_points": 4,
         "expected_verdict": "둔화",
         "audit_expected": "둔화",
@@ -43,7 +43,7 @@
         "label": "DDR5",
         "group": "DRAM",
         "yoy_pct": 667.8019085225403,
-        "recent_direct_change_pct": 19.048469387755105,
+        "recent_direct_change_pct": 17.646910530163606,
         "trend_points": 4,
         "expected_verdict": "상승",
         "audit_expected": "상승",
@@ -188,14 +188,14 @@
       }
     ],
     "image": {
-      "path": "reports\\memory_price_summary_2026-07-05.png",
+      "path": "reports/memory_price_summary_2026-07-05.png",
       "status": "pass",
       "width": 1400,
       "height": 2100,
       "mean": [
-        218.44337789115647,
-        218.42249523809525,
-        216.29043367346938
+        218.26288707482993,
+        218.27526802721087,
+        216.14082278911565
       ],
       "channel_ranges": [
         240,
@@ -206,9 +206,9 @@
     },
     "pcpartpicker": {
       "status": "pass",
-      "fetch_status": "확인",
-      "image_count": 30,
-      "selected_count": 7,
+      "fetch_status": "확인 불가",
+      "image_count": 0,
+      "selected_count": 0,
       "numeric_value_policy": "PCPartPicker Trends HTML exposes rendered PNG chart URLs and titles, not raw numeric time-series values. Pixel-digitized chart values are not used as latest values, YoY inputs, or verdict inputs."
     }
   }

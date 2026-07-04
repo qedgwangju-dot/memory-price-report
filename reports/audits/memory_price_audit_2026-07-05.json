@@ -3,7 +3,7 @@
   "date": "2026-07-05",
   "basis_date": "2026-07-05",
   "run_date": "2026-07-04",
-  "query_time": "2026-07-04 15:57 KST",
+  "query_time": "2026-07-04 17:07 KST",
   "status": "pass",
   "exchange_rate_status": "확인",
   "thresholds": {
@@ -21,7 +21,7 @@
         "yoy_status": "확인",
         "yoy_pct": 778.5915492957747,
         "trend_points": 4,
-        "recent_direct_change_pct": 112.82838621630842,
+        "recent_direct_change_pct": 106.62471016893011,
         "expected_image_verdict": "강함",
         "actual_image_verdict": "강함",
         "status": "pass"
@@ -34,7 +34,7 @@
         "yoy_status": "확인",
         "yoy_pct": 794.94961331146,
         "trend_points": 4,
-        "recent_direct_change_pct": -1.016083671379886,
+        "recent_direct_change_pct": -1.3701637481274953,
         "expected_image_verdict": "둔화",
         "actual_image_verdict": "둔화",
         "status": "pass"
@@ -47,7 +47,7 @@
         "yoy_status": "확인",
         "yoy_pct": 667.8019085225403,
         "trend_points": 4,
-        "recent_direct_change_pct": 19.048469387755105,
+        "recent_direct_change_pct": 17.646910530163606,
         "expected_image_verdict": "상승",
         "actual_image_verdict": "상승",
         "status": "pass"
@@ -211,11 +211,11 @@
     ],
     "pcpartpicker": {
       "status": "pass",
-      "path": "reports\\pcpartpicker\\pcpartpicker_trends_2026-07-05.json",
+      "path": "reports/pcpartpicker/pcpartpicker_trends_2026-07-05.json",
       "numeric_values_used_for_verdict": false,
-      "fetch_status": "확인",
-      "image_count": 30,
-      "selected_count": 7,
+      "fetch_status": "확인 불가",
+      "image_count": 0,
+      "selected_count": 0,
       "numeric_value_policy": "PCPartPicker Trends HTML exposes rendered PNG chart URLs and titles, not raw numeric time-series values. Pixel-digitized chart values are not used as latest values, YoY inputs, or verdict inputs."
     }
   },
