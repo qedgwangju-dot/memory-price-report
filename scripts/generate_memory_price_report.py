@@ -1663,15 +1663,26 @@ def wrap_text(draw: ImageDraw.ImageDraw, text: str, used_font: ImageFont.ImageFo
     lines: list[str] = []
     for raw_line in str(text).splitlines() or [""]:
         current = ""
-        for char in raw_line:
-            test = current + char
+        for token in re.findall(r"\S+\s*", raw_line):
+            test = current + token
             if text_width(draw, test, used_font) <= max_width or not current:
                 current = test
             else:
-                lines.append(current)
-                current = char
+                lines.append(current.rstrip())
+                current = token
+            while text_width(draw, current, used_font) > max_width and len(current.strip()) > 1:
+                piece = ""
+                remaining = current
+                for char in remaining:
+                    test_piece = piece + char
+                    if text_width(draw, test_piece, used_font) <= max_width or not piece:
+                        piece = test_piece
+                    else:
+                        break
+                lines.append(piece.rstrip())
+                current = remaining[len(piece):].lstrip()
         if current:
-            lines.append(current)
+            lines.append(current.rstrip())
     return lines
 
 
