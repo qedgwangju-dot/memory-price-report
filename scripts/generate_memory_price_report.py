@@ -35,6 +35,9 @@ VERIFIED = "확인"
 STALE_REFERENCE_DAYS = 45
 REQUEST_TIMEOUT_SECONDS = 15
 REQUEST_RETRIES = 1
+IMAGE_TREND_MONTHS = 18
+IMAGE_TREND_POINTS = 7
+MONTH_NAMES = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 DRAMEXCHANGE_HOME = "https://www.dramexchange.com/"
 DRAMEXCHANGE_HOME_PRICE = "https://www.dramexchange.com/Home/HomePrice"
@@ -876,7 +879,7 @@ def add_trend_point(
 def fetch_dramexchange_spot_trend_points(start: date, end: date) -> dict[str, list[TrendPoint]]:
     selected: list[dict[str, str]] = []
     seen: set[str] = set()
-    for target in trend_target_dates(start, end, 4):
+    for target in trend_target_dates(start, end, IMAGE_TREND_POINTS):
         capture = available_capture(DRAMEXCHANGE_HOME, target)
         if capture is None:
             captures = fetch_cdx_captures("www.dramexchange.com/", target - timedelta(days=14), target + timedelta(days=14), 20)
@@ -943,7 +946,7 @@ def fetch_dramexchange_home_price_trend_points(start: date, end: date) -> dict[s
         ("SSD street price", "SSD", "Series", ("990", "pro"), "DRAMeXchange HomePrice SSD"),
     ]
     mapping: dict[str, list[TrendPoint]] = {}
-    targets = trend_target_dates(start, end, 4)
+    targets = trend_target_dates(start, end, IMAGE_TREND_POINTS)
     for label, source_key, field, keywords, source_name in specs:
         seen: set[str] = set()
         for target in targets:
@@ -988,7 +991,7 @@ def fetch_danawa_history_points(product: dict[str, str]) -> list[TrendPoint]:
     if not isinstance(points, list):
         return []
     result: list[TrendPoint] = []
-    for point in points[-13:]:
+    for point in points[-(IMAGE_TREND_MONTHS + 1):]:
         if not isinstance(point, dict):
             continue
         price = parse_float(point.get("minPrice"))
@@ -1015,7 +1018,7 @@ def dedupe_trend_points(points: list[TrendPoint]) -> list[TrendPoint]:
 
 
 def apply_trend_points(records: list[ReportRecord]) -> None:
-    start = previous_year_date(TODAY_DATE)
+    start = add_months(TODAY_DATE, -IMAGE_TREND_MONTHS)
     trend_sources: dict[str, list[TrendPoint]] = {}
     for fetcher in (fetch_dramexchange_spot_trend_points,):
         try:
@@ -1362,7 +1365,7 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
             {
                 "item": compact_label(record.label),
                 "trend": image_trend_text(record),
-                "basis": "12M" if has_series else "시계열 부족",
+                "basis": f"{IMAGE_TREND_MONTHS}M" if has_series else "시계열 부족",
                 "trend_pct": record.yoy_pct if verified_yoy else None,
                 "series": series if has_series else [],
                 "change": pct_text(record.yoy_pct) if verified_yoy else "직접치 부족",
@@ -1381,13 +1384,15 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
         "boxes": [box("DRAM", "DRAM"), box("NAND/SSD", "NAND/SSD"), box("소매", "소매")],
         "charts": [
             {
-                "title": "DRAM spot chips (average price in USD over last 12 months)",
+                "title": f"DRAM spot chips (Average price in USD over last {IMAGE_TREND_MONTHS} months)",
                 "unit": "USD",
+                "caption": f"Average DRAM spot price (USD) over last {IMAGE_TREND_MONTHS} months - DRAMeXchange public table / Internet Archive",
                 "series": chart_series(["DDR3 칩", "DDR4 칩", "DDR5 칩"]),
             },
             {
-                "title": "Retail memory/storage (lowest price in KRW over last 12 months)",
+                "title": f"Retail memory/storage (Lowest listed price in KRW over last {IMAGE_TREND_MONTHS} months)",
                 "unit": "KRW",
+                "caption": f"Lowest listed retail price (KRW) over last {IMAGE_TREND_MONTHS} months - Danawa price trend API",
                 "series": chart_series(["소매 메모리", "소매 HDD", "소매 SSD"]),
             },
         ],
@@ -1532,6 +1537,12 @@ def month_label_from_index(index: int) -> str:
     return f"{year % 100:02d}-{month:02d}"
 
 
+def month_label_from_index_long(index: int) -> str:
+    year = index // 12
+    month = index % 12 + 1
+    return f"{MONTH_NAMES[month - 1]} {year}"
+
+
 def format_chart_value(value: float, unit: str) -> str:
     if unit == "KRW":
         if value >= 10000:
@@ -1575,6 +1586,7 @@ def draw_step_series(
     max_value: float,
     color: str,
     width: int,
+    marker_radius: int = 0,
 ) -> None:
     if len(points) < 2:
         return
@@ -1590,11 +1602,19 @@ def draw_step_series(
     for idx in range(len(coords) - 1):
         _, current_value, x1, y1 = coords[idx]
         _, next_value, x2, y2 = coords[idx + 1]
-        segment_color = "#B42318" if next_value < current_value else color
-        draw.line((x1, y1, x2, y1), fill=segment_color, width=width)
-        draw.line((x2, y1, x2, y2), fill=segment_color, width=width)
-    for _, _, x, y in coords:
-        draw.ellipse((x - 3, y - 3, x + 3, y + 3), fill="#344054")
+        draw.line((x1, y1, x2, y1), fill=color, width=width)
+        draw.line((x2, y1, x2, y2), fill=color, width=width)
+    if marker_radius > 0:
+        for _, _, x, y in coords:
+            draw.ellipse((x - marker_radius, y - marker_radius, x + marker_radius, y + marker_radius), fill=color)
+
+
+def average_series_points(parsed_series: list[tuple[str, list[tuple[int, float]]]]) -> list[tuple[int, float]]:
+    buckets: dict[int, list[float]] = {}
+    for _, points in parsed_series:
+        for month, value in points:
+            buckets.setdefault(month, []).append(value)
+    return sorted((month, sum(values) / len(values)) for month, values in buckets.items() if values)
 
 
 def draw_price_chart(
@@ -1607,19 +1627,20 @@ def draw_price_chart(
     title_font: ImageFont.ImageFont,
     axis_font: ImageFont.ImageFont,
     legend_font: ImageFont.ImageFont,
-) -> None:
+) -> int:
     title = str(chart.get("title") or "Price trend")
     unit = str(chart.get("unit") or "")
+    caption = str(chart.get("caption") or "")
     series = [item for item in chart.get("series", []) if isinstance(item, dict) and item.get("points")]
     draw.text((x, y), title, font=title_font, fill="#111827")
-    y += 46
+    y += title_font.size + 18
 
     outer = (x, y, x + width, y + height)
-    draw.rectangle(outer, fill="#F7F7F8", outline="#344054", width=1)
-    left = x + 80
-    right = x + width - 28
-    top = y + 34
-    bottom = y + height - 58
+    draw.rectangle(outer, fill="#F4F4F4", outline="#4B5563", width=1)
+    left = x + 82
+    right = x + width - 36
+    top = y + 38
+    bottom = y + height - 76
 
     parsed_series: list[tuple[str, list[tuple[int, float]]]] = []
     values: list[float] = []
@@ -1643,113 +1664,116 @@ def draw_price_chart(
 
     if not parsed_series:
         draw.text((left, top + 100), "직접 조회 시계열 부족", font=title_font, fill="#8A5A00")
-        return
+        return y + height + 48
 
     min_month, max_month = min(months), max(months)
-    min_value, max_value = min(values), max(values)
-    pad = max((max_value - min_value) * 0.08, max_value * 0.02, 1)
-    min_value = max(0, min_value - pad)
-    max_value = max_value + pad
-    ticks = nice_ticks(min_value, max_value, 6)
+    average_points = average_series_points(parsed_series)
+    values.extend(value for _, value in average_points)
+    min_value = 0.0
+    max_value = max(values)
+    max_value = max_value + max(max_value * 0.08, 1)
+    ticks = nice_ticks(min_value, max_value, 7)
+    if ticks:
+        max_value = max(ticks)
 
     for tick in ticks:
         if tick < min_value or tick > max_value:
             continue
         yy = bottom - round((tick - min_value) / max(max_value - min_value, 1e-9) * (bottom - top))
-        draw.line((left, yy, right, yy), fill="#A3A3A3", width=1)
+        draw.line((left, yy, right, yy), fill="#A6A6A6", width=1)
         label = format_chart_value(tick, unit)
-        draw.text((x + 22, yy - 10), label, font=axis_font, fill="#667085")
+        draw.text((x + 18, yy - 10), label, font=axis_font, fill="#5F6368")
 
     span = max_month - min_month
-    x_step = max(1, round(span / 6))
+    x_label_step = 1 if span <= 12 else 2
     tick_month = min_month
+    last_labeled_month: int | None = None
     while tick_month <= max_month:
         xx = left + round((tick_month - min_month) / max(1, span) * (right - left))
-        draw.line((xx, top, xx, bottom), fill="#A3A3A3", width=1)
-        draw.text((xx - 22, bottom + 12), month_label_from_index(tick_month), font=axis_font, fill="#667085")
-        tick_month += x_step
+        draw.line((xx, top, xx, bottom), fill="#A6A6A6", width=1)
+        should_label = (tick_month - min_month) % x_label_step == 0
+        should_label = should_label or (tick_month == max_month and (last_labeled_month is None or tick_month - last_labeled_month >= x_label_step))
+        if should_label:
+            label = month_label_from_index_long(tick_month)
+            draw.text((xx - text_width(draw, label, axis_font) // 2, bottom + 12), label, font=axis_font, fill="#5F6368")
+            last_labeled_month = tick_month
+        tick_month += 1
 
-    colors = ["#111827", "#4E63FF", "#0F7B4F", "#B54708", "#7A5AF8"]
-    for idx, (label, points) in enumerate(parsed_series):
-        draw_step_series(draw, points, left, top, right, bottom, min_month, max_month, min_value, max_value, colors[idx % len(colors)], 4 if idx == 0 else 3)
+    for _, points in parsed_series:
+        draw_step_series(draw, points, left, top, right, bottom, min_month, max_month, min_value, max_value, "#8792FF", 3)
+    draw_step_series(draw, average_points, left, top, right, bottom, min_month, max_month, min_value, max_value, "#111111", 4, marker_radius=3)
+
+    watermark_font = font(36, bold=True)
+    watermark = "DIRECT SOURCED"
+    draw.text((right - text_width(draw, watermark, watermark_font) - 24, bottom - 58), watermark, font=watermark_font, fill="#D8DDE6")
 
     legend_x = left
-    legend_y = y + height - 28
-    for idx, (label, _) in enumerate(parsed_series):
-        color = colors[idx % len(colors)]
-        draw.line((legend_x, legend_y + 9, legend_x + 28, legend_y + 9), fill=color, width=4)
-        draw.text((legend_x + 36, legend_y), label, font=legend_font, fill="#344054")
-        legend_x += min(210, 72 + text_width(draw, label, legend_font))
+    legend_y = y + height - 42
+    draw.line((legend_x, legend_y + 9, legend_x + 34, legend_y + 9), fill="#111111", width=4)
+    draw.text((legend_x + 42, legend_y), "Average", font=legend_font, fill="#111111")
+    legend_x += 158
+    draw.line((legend_x, legend_y + 9, legend_x + 34, legend_y + 9), fill="#8792FF", width=4)
+    component_label = " / ".join(label for label, _ in parsed_series[:4])
+    if len(parsed_series) > 4:
+        component_label += " ..."
+    draw.text((legend_x + 42, legend_y), component_label, font=legend_font, fill="#4B5563")
+
+    if caption:
+        caption_x = left + max(0, (right - left - text_width(draw, caption, axis_font)) // 2)
+        draw.text((caption_x, y + height - 18), caption, font=axis_font, fill="#5F6368")
+    return y + height + 54
 
 
 def create_card_png(card: dict[str, Any], output_path: Path) -> None:
-    width, height = 1400, 2300
-    image = Image.new("RGB", (width, height), "#F6F7F9")
+    width, height = 1600, 1860
+    image = Image.new("RGB", (width, height), "#FFFFFF")
     draw = ImageDraw.Draw(image)
 
-    title_font = font(58, bold=True)
-    meta_font = font(25)
-    box_label_font = font(30, bold=True)
-    box_status_font = font(42, bold=True)
-    table_font = font(26)
-    table_bold_font = font(28, bold=True)
-    chip_font = font(25, bold=True)
-    conclusion_font = font(30, bold=True)
-    chart_title_font = font(32, bold=True)
+    title_font = font(44, bold=True)
+    meta_font = font(24)
+    note_font = font(22)
+    conclusion_font = font(27, bold=True)
+    chart_title_font = font(37, bold=True)
     axis_font = font(20)
     legend_font = font(22, bold=True)
 
-    margin = 70
-    draw.rounded_rectangle((40, 40, width - 40, height - 40), radius=36, fill="#FFFFFF", outline="#E4E7EC", width=2)
-    y = 90
-    draw.text((margin, y), card.get("title") or "오늘 메모리·저장장치 추세판", font=title_font, fill="#111827")
-    y += 78
-    y = draw_wrapped(draw, (margin, y), card.get("meta") or f"기준일 {TODAY} · 조회 {QUERY_TIME}", meta_font, "#667085", width - margin * 2)
-    y += 30
+    margin = 78
+    y = 54
+    draw.text((margin, y), "Memory price trends", font=title_font, fill="#071225")
+    y += 60
+    y = draw_wrapped(draw, (margin, y), card.get("meta") or f"기준일 {TODAY} · 조회 {QUERY_TIME}", meta_font, "#5F6368", width - margin * 2)
+    y += 18
+    rule = (
+        f"전년 대비 판단은 익일 기준 전년 직접치만 사용 · "
+        f"추세선은 최근 {IMAGE_TREND_MONTHS}개월 직접 조회 포인트만 표시 · "
+        "추정/보간/이전 보고서값 미사용"
+    )
+    y = draw_wrapped(draw, (margin, y), rule, note_font, "#111827", width - margin * 2)
+    y += 34
 
-    boxes = (card.get("boxes") or [])[:3]
-    while len(boxes) < 3:
-        boxes.append({"label": "-", "status": "보류", "basis": UNAVAILABLE})
-    box_gap = 22
-    box_w = (width - margin * 2 - box_gap * 2) // 3
-    box_h = 190
-    for i, box in enumerate(boxes):
-        x = margin + i * (box_w + box_gap)
-        status = str(box.get("status") or "보류")
-        color, bg = status_color(status)
-        draw.rounded_rectangle((x, y, x + box_w, y + box_h), radius=24, fill=bg, outline=color, width=2)
-        draw.text((x + 28, y + 24), str(box.get("label") or "-"), font=box_label_font, fill="#344054")
-        draw.text((x + 28, y + 72), status, font=box_status_font, fill=color)
-        draw.text((x + 28, y + 135), str(box.get("basis") or UNAVAILABLE), font=meta_font, fill="#475467")
-    y += box_h + 44
-
-    draw.text((margin, y), "가격 추세 차트", font=table_bold_font, fill="#111827")
-    draw.text((margin + 210, y + 4), "직접 조회 포인트만 사용, 하락 구간은 빨간색", font=meta_font, fill="#667085")
-    y += 48
     charts = (card.get("charts") or [])[:2]
-    chart_h = 505
+    chart_h = 610
     for chart in charts:
-        draw_price_chart(draw, chart, margin, y, width - margin * 2, chart_h, chart_title_font, axis_font, legend_font)
-        y += chart_h + 88
+        y = draw_price_chart(draw, chart, margin, y, width - margin * 2, chart_h, chart_title_font, axis_font, legend_font)
 
     chips = card.get("chips") or {}
-    chip_labels = ["YoY 상승", "YoY 하락", "단기 하락", "보류"]
-    chip_w = (width - margin * 2 - 24) // 2
-    chip_h = 110
-    for i, label in enumerate(chip_labels):
-        x = margin + (i % 2) * (chip_w + 24)
-        cy = y + (i // 2) * (chip_h + 20)
-        color, bg = status_color(label)
-        draw.rounded_rectangle((x, cy, x + chip_w, cy + chip_h), radius=18, fill=bg, outline=color, width=2)
-        draw.text((x + 22, cy + 18), label, font=chip_font, fill=color)
-        label_width = draw.textbbox((0, 0), label, font=chip_font)[2]
-        list_x = x + 22 + label_width + 28
-        draw_wrapped(draw, (list_x, cy + 18), list_text(chips.get(label), limit=4), meta_font, "#344054", x + chip_w - list_x - 22, line_gap=2)
-    y += chip_h * 2 + 70
-
+    summary = (
+        f"YoY 상승: {list_text(chips.get('YoY 상승'), 4)}   "
+        f"YoY 하락: {list_text(chips.get('YoY 하락'), 4)}   "
+        f"보류: {list_text(chips.get('보류'), 5)}"
+    )
+    y += 10
+    draw.text((margin, y), summary, font=note_font, fill="#111827")
+    y += 42
+    draw.text(
+        (margin, y),
+        "* Only directly verified source points are plotted. Missing, delayed, conflicting, or access-limited values are not estimated.",
+        font=note_font,
+        fill="#111827",
+    )
+    y += 42
     conclusion = card.get("conclusion") or "직접 확인 가능한 핵심값 기준으로 판단한다."
-    draw.rounded_rectangle((margin, y, width - margin, height - 95), radius=20, fill="#111827")
-    draw_wrapped(draw, (margin + 30, y + 28), conclusion, conclusion_font, "#FFFFFF", width - margin * 2 - 60, line_gap=8)
+    draw_wrapped(draw, (margin, y), conclusion, conclusion_font, "#071225", width - margin * 2, line_gap=6)
 
     image.save(output_path)
 
