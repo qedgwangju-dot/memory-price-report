@@ -1315,6 +1315,21 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
         candidates.sort(key=lambda record: record.change_pct or 0)
         return [compact_label(record.label) for record in candidates[:limit]]
 
+    def chart_series(wanted_labels: list[str]) -> list[dict[str, Any]]:
+        series: list[dict[str, Any]] = []
+        for wanted in wanted_labels:
+            record = next((item for item in records if base_label(item).startswith(wanted)), None)
+            if record is None:
+                continue
+            points = [
+                {"label": point.label, "value": point.value}
+                for point in record.trend_points
+                if point.value > 0
+            ]
+            if len(points) >= 3:
+                series.append({"label": compact_label(record.label), "unit": record.value_unit, "points": points})
+        return series
+
     summaries = summarize(records)
     priorities = [
         "DDR3 칩",
@@ -1364,6 +1379,18 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
         "title": "오늘 메모리·저장장치 추세판",
         "meta": f"기준일 {TODAY} · 조회 {QUERY_TIME} · {rate_text}",
         "boxes": [box("DRAM", "DRAM"), box("NAND/SSD", "NAND/SSD"), box("소매", "소매")],
+        "charts": [
+            {
+                "title": "DRAM spot chips (average price in USD over last 12 months)",
+                "unit": "USD",
+                "series": chart_series(["DDR3 칩", "DDR4 칩", "DDR5 칩"]),
+            },
+            {
+                "title": "Retail memory/storage (lowest price in KRW over last 12 months)",
+                "unit": "KRW",
+                "series": chart_series(["소매 메모리", "소매 HDD", "소매 SSD"]),
+            },
+        ],
         "rows": rows,
         "chips": {
             "YoY 상승": card_change_items("강함", 3),
@@ -1486,8 +1513,177 @@ def draw_trend_line(
     draw.ellipse((end_x - 6, end_y - 6, end_x + 6, end_y + 6), fill=end_color)
 
 
+def month_index(label: str) -> int | None:
+    match = re.search(r"(\d{2,4})-(\d{2})", label or "")
+    if not match:
+        return None
+    year = int(match.group(1))
+    if year < 100:
+        year += 2000
+    month = int(match.group(2))
+    if month < 1 or month > 12:
+        return None
+    return year * 12 + month - 1
+
+
+def month_label_from_index(index: int) -> str:
+    year = index // 12
+    month = index % 12 + 1
+    return f"{year % 100:02d}-{month:02d}"
+
+
+def format_chart_value(value: float, unit: str) -> str:
+    if unit == "KRW":
+        if value >= 10000:
+            return f"{round(value / 10000):,}만"
+        return f"{round(value):,}원"
+    if unit == "USD":
+        if value >= 100:
+            return f"${value:,.0f}"
+        return f"${value:,.1f}"
+    return f"{value:,.0f}"
+
+
+def nice_ticks(min_value: float, max_value: float, count: int = 6) -> list[float]:
+    if max_value <= min_value:
+        return [min_value]
+    span = max_value - min_value
+    raw_step = span / max(1, count - 1)
+    magnitude = 10 ** int(len(str(int(raw_step))) - 1) if raw_step >= 1 else 1
+    candidates = [1, 2, 5, 10]
+    step = min((candidate * magnitude for candidate in candidates), key=lambda item: abs(item - raw_step))
+    floor = (int(min_value // step)) * step
+    ticks: list[float] = []
+    value = floor
+    while value <= max_value + step:
+        if value >= 0:
+            ticks.append(float(value))
+        value += step
+    return ticks[: count + 2]
+
+
+def draw_step_series(
+    draw: ImageDraw.ImageDraw,
+    points: list[tuple[int, float]],
+    chart_left: int,
+    chart_top: int,
+    chart_right: int,
+    chart_bottom: int,
+    min_month: int,
+    max_month: int,
+    min_value: float,
+    max_value: float,
+    color: str,
+    width: int,
+) -> None:
+    if len(points) < 2:
+        return
+    month_span = max(1, max_month - min_month)
+    value_span = max(max_value - min_value, max_value * 0.02, 1e-9)
+
+    def xy(month: int, value: float) -> tuple[int, int]:
+        x = chart_left + round((month - min_month) / month_span * (chart_right - chart_left))
+        y = chart_bottom - round((value - min_value) / value_span * (chart_bottom - chart_top))
+        return x, y
+
+    coords = [(month, value, *xy(month, value)) for month, value in points]
+    for idx in range(len(coords) - 1):
+        _, current_value, x1, y1 = coords[idx]
+        _, next_value, x2, y2 = coords[idx + 1]
+        segment_color = "#B42318" if next_value < current_value else color
+        draw.line((x1, y1, x2, y1), fill=segment_color, width=width)
+        draw.line((x2, y1, x2, y2), fill=segment_color, width=width)
+    for _, _, x, y in coords:
+        draw.ellipse((x - 3, y - 3, x + 3, y + 3), fill="#344054")
+
+
+def draw_price_chart(
+    draw: ImageDraw.ImageDraw,
+    chart: dict[str, Any],
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+    title_font: ImageFont.ImageFont,
+    axis_font: ImageFont.ImageFont,
+    legend_font: ImageFont.ImageFont,
+) -> None:
+    title = str(chart.get("title") or "Price trend")
+    unit = str(chart.get("unit") or "")
+    series = [item for item in chart.get("series", []) if isinstance(item, dict) and item.get("points")]
+    draw.text((x, y), title, font=title_font, fill="#111827")
+    y += 46
+
+    outer = (x, y, x + width, y + height)
+    draw.rectangle(outer, fill="#F7F7F8", outline="#344054", width=1)
+    left = x + 80
+    right = x + width - 28
+    top = y + 34
+    bottom = y + height - 58
+
+    parsed_series: list[tuple[str, list[tuple[int, float]]]] = []
+    values: list[float] = []
+    months: list[int] = []
+    for item in series:
+        parsed_points: list[tuple[int, float]] = []
+        for point in item.get("points", []):
+            if not isinstance(point, dict):
+                continue
+            idx = month_index(str(point.get("label") or ""))
+            value = parse_float(point.get("value"))
+            if idx is None or value is None:
+                continue
+            parsed_points.append((idx, value))
+        parsed_points = sorted(dict(parsed_points).items())
+        if len(parsed_points) < 2:
+            continue
+        parsed_series.append((str(item.get("label") or "-"), parsed_points))
+        months.extend(month for month, _ in parsed_points)
+        values.extend(value for _, value in parsed_points)
+
+    if not parsed_series:
+        draw.text((left, top + 100), "직접 조회 시계열 부족", font=title_font, fill="#8A5A00")
+        return
+
+    min_month, max_month = min(months), max(months)
+    min_value, max_value = min(values), max(values)
+    pad = max((max_value - min_value) * 0.08, max_value * 0.02, 1)
+    min_value = max(0, min_value - pad)
+    max_value = max_value + pad
+    ticks = nice_ticks(min_value, max_value, 6)
+
+    for tick in ticks:
+        if tick < min_value or tick > max_value:
+            continue
+        yy = bottom - round((tick - min_value) / max(max_value - min_value, 1e-9) * (bottom - top))
+        draw.line((left, yy, right, yy), fill="#A3A3A3", width=1)
+        label = format_chart_value(tick, unit)
+        draw.text((x + 22, yy - 10), label, font=axis_font, fill="#667085")
+
+    span = max_month - min_month
+    x_step = max(1, round(span / 6))
+    tick_month = min_month
+    while tick_month <= max_month:
+        xx = left + round((tick_month - min_month) / max(1, span) * (right - left))
+        draw.line((xx, top, xx, bottom), fill="#A3A3A3", width=1)
+        draw.text((xx - 22, bottom + 12), month_label_from_index(tick_month), font=axis_font, fill="#667085")
+        tick_month += x_step
+
+    colors = ["#111827", "#4E63FF", "#0F7B4F", "#B54708", "#7A5AF8"]
+    for idx, (label, points) in enumerate(parsed_series):
+        draw_step_series(draw, points, left, top, right, bottom, min_month, max_month, min_value, max_value, colors[idx % len(colors)], 4 if idx == 0 else 3)
+
+    legend_x = left
+    legend_y = y + height - 28
+    for idx, (label, _) in enumerate(parsed_series):
+        color = colors[idx % len(colors)]
+        draw.line((legend_x, legend_y + 9, legend_x + 28, legend_y + 9), fill=color, width=4)
+        draw.text((legend_x + 36, legend_y), label, font=legend_font, fill="#344054")
+        legend_x += min(210, 72 + text_width(draw, label, legend_font))
+
+
 def create_card_png(card: dict[str, Any], output_path: Path) -> None:
-    width, height = 1400, 2100
+    width, height = 1400, 2300
     image = Image.new("RGB", (width, height), "#F6F7F9")
     draw = ImageDraw.Draw(image)
 
@@ -1497,9 +1693,11 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
     box_status_font = font(42, bold=True)
     table_font = font(26)
     table_bold_font = font(28, bold=True)
-    trend_font = font(27, bold=True)
     chip_font = font(25, bold=True)
     conclusion_font = font(30, bold=True)
+    chart_title_font = font(32, bold=True)
+    axis_font = font(20)
+    legend_font = font(22, bold=True)
 
     margin = 70
     draw.rounded_rectangle((40, 40, width - 40, height - 40), radius=36, fill="#FFFFFF", outline="#E4E7EC", width=2)
@@ -1525,41 +1723,14 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
         draw.text((x + 28, y + 135), str(box.get("basis") or UNAVAILABLE), font=meta_font, fill="#475467")
     y += box_h + 44
 
-    draw.text((margin, y), "직접 조회 시계열", font=table_bold_font, fill="#111827")
-    draw.text((margin + 235, y + 4), "3개 이상 직접 포인트 없으면 점선", font=meta_font, fill="#667085")
-    y += 52
-    header_h = 56
-    draw.rounded_rectangle((margin, y, width - margin, y + header_h), radius=14, fill="#111827")
-    headers = [("항목", 0), ("기간", 280), ("추세선", 410), ("전년 대비", 665), ("출처·상태", 835), ("판정", 1080)]
-    for label, offset in headers:
-        draw.text((margin + 24 + offset, y + 14), label, font=chip_font, fill="#FFFFFF")
-    y += header_h
-
-    rows = (card.get("rows") or [])[:11]
-    row_h = 82
-    for idx, row in enumerate(rows):
-        bg = "#FFFFFF" if idx % 2 == 0 else "#F9FAFB"
-        draw.rectangle((margin, y, width - margin, y + row_h), fill=bg)
-        draw.text((margin + 24, y + 23), str(row.get("item") or "-")[:18], font=table_font, fill="#111827")
-        trend = str(row.get("trend") or "보류")
-        trend_pct = row.get("trend_pct")
-        trend_color, _ = status_color(trend)
-        draw.text((margin + 304, y + 23), str(row.get("basis") or "-")[:8], font=table_font, fill=trend_color)
-        series = row.get("series")
-        draw_trend_line(
-            draw,
-            margin + 430,
-            y + 17,
-            trend_pct if isinstance(trend_pct, (int, float)) else None,
-            series if isinstance(series, list) else None,
-        )
-        draw.text((margin + 689, y + 23), str(row.get("change") or "-")[:10], font=table_bold_font, fill="#111827")
-        draw.text((margin + 859, y + 23), str(row.get("source_status") or "-")[:18], font=meta_font, fill="#475467")
-        verdict = str(row.get("verdict") or "보류")
-        color, _ = status_color(verdict)
-        draw.text((margin + 1104, y + 23), verdict[:14], font=table_bold_font, fill=color)
-        y += row_h
-    y += 24
+    draw.text((margin, y), "가격 추세 차트", font=table_bold_font, fill="#111827")
+    draw.text((margin + 210, y + 4), "직접 조회 포인트만 사용, 하락 구간은 빨간색", font=meta_font, fill="#667085")
+    y += 48
+    charts = (card.get("charts") or [])[:2]
+    chart_h = 505
+    for chart in charts:
+        draw_price_chart(draw, chart, margin, y, width - margin * 2, chart_h, chart_title_font, axis_font, legend_font)
+        y += chart_h + 88
 
     chips = card.get("chips") or {}
     chip_labels = ["YoY 상승", "YoY 하락", "단기 하락", "보류"]
