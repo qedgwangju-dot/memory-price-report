@@ -1,0 +1,218 @@
+{
+  "schema_version": 1,
+  "date": "2026-07-05",
+  "basis_date": "2026-07-05",
+  "run_date": "2026-07-04",
+  "query_time": "2026-07-04 15:09 KST",
+  "status": "pass",
+  "exchange_rate_status": "확인",
+  "checks": {
+    "row_verdicts": [
+      {
+        "label": "DDR3",
+        "group": "DRAM",
+        "visible_in_image_table": true,
+        "certainty_status": "확인",
+        "yoy_status": "확인",
+        "yoy_pct": 778.5915492957747,
+        "trend_points": 4,
+        "recent_direct_change_pct": 106.62471016893011,
+        "expected_image_verdict": "강함",
+        "actual_image_verdict": "강함",
+        "status": "pass"
+      },
+      {
+        "label": "DDR4",
+        "group": "DRAM",
+        "visible_in_image_table": true,
+        "certainty_status": "확인",
+        "yoy_status": "확인",
+        "yoy_pct": 794.94961331146,
+        "trend_points": 4,
+        "recent_direct_change_pct": -1.3701637481274953,
+        "expected_image_verdict": "둔화",
+        "actual_image_verdict": "둔화",
+        "status": "pass"
+      },
+      {
+        "label": "DDR5",
+        "group": "DRAM",
+        "visible_in_image_table": true,
+        "certainty_status": "확인",
+        "yoy_status": "확인",
+        "yoy_pct": 667.8019085225403,
+        "trend_points": 4,
+        "recent_direct_change_pct": 17.646910530163606,
+        "expected_image_verdict": "강함",
+        "actual_image_verdict": "강함",
+        "status": "pass"
+      },
+      {
+        "label": "DDR4 모듈",
+        "group": "DRAM",
+        "visible_in_image_table": false,
+        "certainty_status": "확인",
+        "yoy_status": "전년 직접치 부족",
+        "yoy_pct": null,
+        "trend_points": 2,
+        "recent_direct_change_pct": 21.936625172214196,
+        "expected_image_verdict": "보류",
+        "actual_image_verdict": "not in image table",
+        "status": "pass"
+      },
+      {
+        "label": "DDR5 모듈",
+        "group": "DRAM",
+        "visible_in_image_table": false,
+        "certainty_status": "확인",
+        "yoy_status": "전년 직접치 부족",
+        "yoy_pct": null,
+        "trend_points": 2,
+        "recent_direct_change_pct": -14.897959183673471,
+        "expected_image_verdict": "보류",
+        "actual_image_verdict": "not in image table",
+        "status": "pass"
+      },
+      {
+        "label": "DRAM 계약",
+        "group": "DRAM",
+        "visible_in_image_table": true,
+        "certainty_status": "확인",
+        "yoy_status": "확인",
+        "yoy_pct": 510.2564102564102,
+        "trend_points": 4,
+        "recent_direct_change_pct": 39.99999999999999,
+        "expected_image_verdict": "강함",
+        "actual_image_verdict": "강함",
+        "status": "pass"
+      },
+      {
+        "label": "NAND MLC64Gb",
+        "group": "NAND/SSD",
+        "visible_in_image_table": true,
+        "certainty_status": "확인",
+        "yoy_status": "확인",
+        "yoy_pct": 411.9408242338852,
+        "trend_points": 4,
+        "recent_direct_change_pct": 227.5267605633803,
+        "expected_image_verdict": "강함",
+        "actual_image_verdict": "강함",
+        "status": "pass"
+      },
+      {
+        "label": "NAND",
+        "group": "NAND/SSD",
+        "visible_in_image_table": true,
+        "certainty_status": "확인",
+        "yoy_status": "확인",
+        "yoy_pct": 806.8764967499144,
+        "trend_points": 4,
+        "recent_direct_change_pct": 180.27067033199407,
+        "expected_image_verdict": "강함",
+        "actual_image_verdict": "강함",
+        "status": "pass"
+      },
+      {
+        "label": "OEM SSD",
+        "group": "NAND/SSD",
+        "visible_in_image_table": true,
+        "certainty_status": "지연/불일치 있음",
+        "yoy_status": "현재 직접치 부족",
+        "yoy_pct": null,
+        "trend_points": 0,
+        "recent_direct_change_pct": null,
+        "expected_image_verdict": "보류",
+        "actual_image_verdict": "보류",
+        "status": "pass"
+      },
+      {
+        "label": "SSD street",
+        "group": "NAND/SSD",
+        "visible_in_image_table": true,
+        "certainty_status": "확인",
+        "yoy_status": "전년 직접치 부족",
+        "yoy_pct": null,
+        "trend_points": 1,
+        "recent_direct_change_pct": null,
+        "expected_image_verdict": "보류",
+        "actual_image_verdict": "보류",
+        "status": "pass"
+      },
+      {
+        "label": "소매 메모리",
+        "group": "소매",
+        "visible_in_image_table": true,
+        "certainty_status": "확인",
+        "yoy_status": "확인",
+        "yoy_pct": 352.8039010797632,
+        "trend_points": 14,
+        "recent_direct_change_pct": 0.0,
+        "expected_image_verdict": "둔화",
+        "actual_image_verdict": "둔화",
+        "status": "pass"
+      },
+      {
+        "label": "소매 HDD",
+        "group": "소매",
+        "visible_in_image_table": true,
+        "certainty_status": "확인",
+        "yoy_status": "확인",
+        "yoy_pct": 144.98537400752193,
+        "trend_points": 14,
+        "recent_direct_change_pct": 2.403982619707845,
+        "expected_image_verdict": "강함",
+        "actual_image_verdict": "강함",
+        "status": "pass"
+      },
+      {
+        "label": "소매 SSD",
+        "group": "소매",
+        "visible_in_image_table": true,
+        "certainty_status": "확인",
+        "yoy_status": "확인",
+        "yoy_pct": 150.96624419626053,
+        "trend_points": 14,
+        "recent_direct_change_pct": 1.2632911392405077,
+        "expected_image_verdict": "강함",
+        "actual_image_verdict": "강함",
+        "status": "pass"
+      }
+    ],
+    "group_boxes": [
+      {
+        "group": "DRAM",
+        "expected_status": "혼재",
+        "expected_basis": "강3 둔1 보류2",
+        "actual_status": "혼재",
+        "actual_basis": "강3 둔1 보류2",
+        "status": "pass"
+      },
+      {
+        "group": "NAND/SSD",
+        "expected_status": "일부 상승",
+        "expected_basis": "강2 보류2",
+        "actual_status": "일부 상승",
+        "actual_basis": "강2 보류2",
+        "status": "pass"
+      },
+      {
+        "group": "소매",
+        "expected_status": "혼재",
+        "expected_basis": "강2 둔1",
+        "actual_status": "혼재",
+        "actual_basis": "강2 둔1",
+        "status": "pass"
+      }
+    ],
+    "pcpartpicker": {
+      "status": "pass",
+      "path": "reports\\pcpartpicker\\pcpartpicker_trends_2026-07-05.json",
+      "numeric_values_used_for_verdict": false,
+      "fetch_status": "확인",
+      "image_count": 30,
+      "selected_count": 7,
+      "numeric_value_policy": "PCPartPicker Trends HTML exposes rendered PNG chart URLs and titles, not raw numeric time-series values. Pixel-digitized chart values are not used as latest values, YoY inputs, or verdict inputs."
+    }
+  },
+  "issues": []
+}

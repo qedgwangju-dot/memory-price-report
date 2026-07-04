@@ -22,6 +22,8 @@ SNAPSHOT_DIR = REPORTS_DIR / "snapshots"
 SNAPSHOT_DIR.mkdir(exist_ok=True)
 PCPARTPICKER_DIR = REPORTS_DIR / "pcpartpicker"
 PCPARTPICKER_DIR.mkdir(exist_ok=True)
+AUDIT_DIR = REPORTS_DIR / "audits"
+AUDIT_DIR.mkdir(exist_ok=True)
 
 KST = ZoneInfo("Asia/Seoul")
 RUN_AT = datetime.now(KST)
@@ -1743,6 +1745,168 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
     }
 
 
+def clean_card_verdict(verdict: object) -> str:
+    return str(verdict or "").replace("▲", "").replace("▼", "").replace("→", "").replace("—", "").strip()
+
+
+def save_audit(records: list[ReportRecord], rate: ExchangeRate, card: dict[str, Any], pcpartpicker_path: Path) -> tuple[Path, Path, str]:
+    json_path = AUDIT_DIR / f"memory_price_audit_{TODAY}.json"
+    md_path = AUDIT_DIR / f"memory_price_audit_{TODAY}.md"
+    issues: list[str] = []
+
+    row_by_item = {str(row.get("item")): row for row in card.get("rows", [])}
+    row_checks: list[dict[str, Any]] = []
+    for record in records:
+        label = compact_label(record.label)
+        visible_row = row_by_item.get(label)
+        expected = image_yoy_verdict(record) if image_actionable_yoy(record) else "보류"
+        recent_pct = recent_direct_change_pct(record)
+        actual = clean_card_verdict(visible_row.get("verdict")) if visible_row else "not in image table"
+        row_status = "pass"
+        if visible_row and actual != expected:
+            row_status = "fail"
+            issues.append(f"row verdict mismatch: {label} expected {expected}, got {actual}")
+        if actual == "강함":
+            if not image_actionable_yoy(record):
+                row_status = "fail"
+                issues.append(f"strong verdict without direct YoY/series: {label}")
+            elif (record.yoy_pct or 0) <= RECENT_TREND_THRESHOLD_PCT or (recent_pct or 0) <= RECENT_TREND_THRESHOLD_PCT:
+                row_status = "fail"
+                issues.append(f"strong verdict without YoY+recent confirmation: {label}")
+        row_checks.append(
+            {
+                "label": label,
+                "group": record.group,
+                "visible_in_image_table": visible_row is not None,
+                "certainty_status": record.certainty_status,
+                "yoy_status": record.yoy_status,
+                "yoy_pct": record.yoy_pct,
+                "trend_points": len([point for point in record.trend_points if point.value > 0]),
+                "recent_direct_change_pct": recent_pct,
+                "expected_image_verdict": expected,
+                "actual_image_verdict": actual,
+                "status": row_status,
+            }
+        )
+
+    group_by_label = {str(box.get("label")): box for box in card.get("boxes", [])}
+    group_checks: list[dict[str, Any]] = []
+    for group in ("DRAM", "NAND/SSD", "소매"):
+        expected = image_group_status(records, group)
+        actual_box = group_by_label.get(group, {})
+        actual_status = str(actual_box.get("status") or "")
+        actual_basis = str(actual_box.get("basis") or "")
+        group_status = "pass"
+        if actual_status != expected["status"] or actual_basis != expected["basis"]:
+            group_status = "fail"
+            issues.append(
+                f"group box mismatch: {group} expected {expected['status']}({expected['basis']}), "
+                f"got {actual_status}({actual_basis})"
+            )
+        group_checks.append(
+            {
+                "group": group,
+                "expected_status": expected["status"],
+                "expected_basis": expected["basis"],
+                "actual_status": actual_status,
+                "actual_basis": actual_basis,
+                "status": group_status,
+            }
+        )
+
+    pcpartpicker_check: dict[str, Any] = {
+        "status": "pass",
+        "path": str(pcpartpicker_path.relative_to(ROOT)),
+        "numeric_values_used_for_verdict": False,
+    }
+    try:
+        pcpartpicker_payload = json.loads(pcpartpicker_path.read_text(encoding="utf-8"))
+        policy_text = str(pcpartpicker_payload.get("numeric_value_policy") or "")
+        pcpartpicker_check.update(
+            {
+                "fetch_status": pcpartpicker_payload.get("status"),
+                "image_count": pcpartpicker_payload.get("image_count"),
+                "selected_count": pcpartpicker_payload.get("selected_count"),
+                "numeric_value_policy": policy_text,
+            }
+        )
+        if "not used as latest values" not in policy_text or "verdict inputs" not in policy_text:
+            pcpartpicker_check["status"] = "fail"
+            issues.append("PCPartPicker numeric-value policy missing strict non-use statement")
+    except Exception as exc:
+        pcpartpicker_check["status"] = "fail"
+        pcpartpicker_check["error"] = f"{exc.__class__.__name__}: {exc}"
+        issues.append("PCPartPicker audit read failed")
+
+    status = "pass" if not issues else "fail"
+    payload = {
+        "schema_version": 1,
+        "date": TODAY,
+        "basis_date": REPORT_DAY,
+        "run_date": RUN_DAY,
+        "query_time": QUERY_TIME,
+        "status": status,
+        "exchange_rate_status": rate.status,
+        "checks": {
+            "row_verdicts": row_checks,
+            "group_boxes": group_checks,
+            "pcpartpicker": pcpartpicker_check,
+        },
+        "issues": issues,
+    }
+    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    lines = [
+        f"# 메모리 가격 보고서 검산 - {TODAY}",
+        "",
+        f"- 상태: {'통과' if status == 'pass' else '실패'}",
+        f"- 조회 시각: {QUERY_TIME}",
+        f"- 기준일: {TODAY}",
+        f"- 이슈 수: {len(issues)}",
+        "",
+        "## 상단 그룹 박스 검산",
+        "| 그룹 | 기대 판정 | 기대 구성 | 이미지 판정 | 이미지 구성 | 상태 |",
+        "|---|---|---|---|---|---|",
+    ]
+    for check in group_checks:
+        lines.append(
+            f"| {check['group']} | {check['expected_status']} | {check['expected_basis']} | "
+            f"{check['actual_status']} | {check['actual_basis']} | {check['status']} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## 행별 이미지 판정 검산",
+            "| 항목 | 상태 | YoY | 포인트 | 최근 직접 구간 | 기대 | 이미지 | 검산 |",
+            "|---|---|---:|---:|---:|---|---|---|",
+        ]
+    )
+    for check in row_checks:
+        yoy = "-" if check["yoy_pct"] is None else f"{check['yoy_pct']:.2f}%"
+        recent = "-" if check["recent_direct_change_pct"] is None else f"{check['recent_direct_change_pct']:.2f}%"
+        lines.append(
+            f"| {check['label']} | {check['certainty_status']} / {check['yoy_status']} | {yoy} | "
+            f"{check['trend_points']} | {recent} | {check['expected_image_verdict']} | "
+            f"{check['actual_image_verdict']} | {check['status']} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## PCPartPicker 보조자료 검산",
+            f"- 상태: {pcpartpicker_check.get('status')}",
+            f"- 수집 상태: {pcpartpicker_check.get('fetch_status', '-')}",
+            f"- 그래프 수: {pcpartpicker_check.get('image_count', '-')}",
+            f"- 선택 그래프 수: {pcpartpicker_check.get('selected_count', '-')}",
+            "- 숫자 최신값/YoY/판정 입력 사용: 안 함",
+            "",
+            "## 이슈",
+        ]
+    )
+    lines.extend([f"- {issue}" for issue in issues] if issues else ["- 없음"])
+    md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return json_path, md_path, status
+
+
 def font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
     candidates = [
         "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc" if bold else "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
@@ -2280,11 +2444,16 @@ def main() -> None:
     report_path.write_text(build_report(records, rate, card_path), encoding="utf-8")
     snapshot = save_snapshot(records, rate)
     pcpartpicker_path = save_pcpartpicker_trends()
+    audit_json_path, audit_md_path, audit_status = save_audit(records, rate, card, pcpartpicker_path)
 
     print(f"Wrote {report_path.relative_to(ROOT)}")
     print(f"Wrote {card_path.relative_to(ROOT)}")
     print(f"Wrote {snapshot.relative_to(ROOT)}")
     print(f"Wrote {pcpartpicker_path.relative_to(ROOT)}")
+    print(f"Wrote {audit_json_path.relative_to(ROOT)}")
+    print(f"Wrote {audit_md_path.relative_to(ROOT)}")
+    if audit_status != "pass":
+        raise RuntimeError(f"Audit failed. See {audit_md_path.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

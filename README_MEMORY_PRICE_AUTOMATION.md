@@ -17,6 +17,7 @@ OpenAI API를 사용하지 않습니다. 스크립트가 직접 접근 가능한
 - 이미지 요약판: `reports/memory_price_summary_YYYY-MM-DD.png`
 - 전년 비교용 검증 스냅샷: `reports/snapshots/memory_price_snapshot_YYYY-MM-DD.json`
 - PCPartPicker 보조 그래프 메타데이터: `reports/pcpartpicker/pcpartpicker_trends_YYYY-MM-DD.json`
+- 자동 검산 결과: `reports/audits/memory_price_audit_YYYY-MM-DD.md` 및 `.json`
 - 수동 실행: GitHub Actions 화면에서 `Memory price report` 워크플로우의 `Run workflow`
 
 ## 주요 직접 조회 소스
@@ -33,4 +34,5 @@ OpenAI API를 사용하지 않습니다. 스크립트가 직접 접근 가능한
 - 같은 출처에서 직접 확인되지 않은 비교값은 계산하지 않습니다.
 - 조회 실패, 지연 데이터, 출처 간 불일치, 접근 제한은 `확인 불가` 또는 `지연/불일치 있음`으로 남깁니다.
 - PCPartPicker PNG 그래프를 픽셀로 읽어 만든 근사값은 숫자 최신값이나 판정값으로 쓰지 않습니다.
+- 보고서 생성 뒤 행별 이미지 판정, 상단 그룹 박스, PCPartPicker 미사용 원칙을 자동 검산합니다. 판정 불일치가 있으면 audit 파일을 남긴 뒤 워크플로우를 실패시킵니다.
 - OpenAI API 키나 GitHub Secret은 필요 없습니다.
