@@ -21,9 +21,14 @@ SNAPSHOT_DIR = REPORTS_DIR / "snapshots"
 SNAPSHOT_DIR.mkdir(exist_ok=True)
 
 KST = ZoneInfo("Asia/Seoul")
-TODAY = datetime.now(KST).strftime("%Y-%m-%d")
-TODAY_DATE = datetime.now(KST).date()
-QUERY_TIME = datetime.now(KST).strftime("%Y-%m-%d %H:%M KST")
+RUN_AT = datetime.now(KST)
+RUN_DATE = RUN_AT.date()
+REPORT_DATE = RUN_DATE + timedelta(days=1)
+RUN_DAY = RUN_DATE.isoformat()
+REPORT_DAY = REPORT_DATE.isoformat()
+TODAY = REPORT_DAY
+TODAY_DATE = REPORT_DATE
+QUERY_TIME = RUN_AT.strftime("%Y-%m-%d %H:%M KST")
 UNAVAILABLE = "확인 불가"
 DELAYED_OR_CONFLICT = "지연/불일치 있음"
 VERIFIED = "확인"
@@ -582,6 +587,20 @@ def wayback_kst(timestamp: str) -> str:
     return parsed.astimezone(KST).strftime("%Y-%m-%d %H:%M KST")
 
 
+def wayback_month_label(timestamp: str) -> str:
+    parsed = parse_wayback_timestamp(timestamp)
+    if parsed is None:
+        return timestamp[:6]
+    return parsed.astimezone(KST).strftime("%y-%m")
+
+
+def month_label_from_text(value: str) -> str:
+    match = re.search(r"(\d{4})-(\d{2})", value or "")
+    if not match:
+        return value[:5]
+    return f"{match.group(1)[2:]}-{match.group(2)}"
+
+
 def wayback_url(capture: dict[str, str]) -> str:
     return f"https://web.archive.org/web/{capture['timestamp']}id_/{capture['original']}"
 
@@ -845,7 +864,7 @@ def add_trend_point(
         return
     mapping.setdefault(label, []).append(
         TrendPoint(
-            label=wayback_kst(capture["timestamp"])[:7],
+            label=wayback_month_label(capture["timestamp"]),
             value=row.value,
             source="Internet Archive DRAMeXchange 공개표 캡처",
             source_url=wayback_url(capture),
@@ -859,6 +878,10 @@ def fetch_dramexchange_spot_trend_points(start: date, end: date) -> dict[str, li
     seen: set[str] = set()
     for target in trend_target_dates(start, end, 4):
         capture = available_capture(DRAMEXCHANGE_HOME, target)
+        if capture is None:
+            captures = fetch_cdx_captures("www.dramexchange.com/", target - timedelta(days=14), target + timedelta(days=14), 20)
+            sorted_captures = sorted_captures_by_distance(captures, target)
+            capture = sorted_captures[0] if sorted_captures else None
         if capture is None:
             continue
         key = capture.get("timestamp", "") + capture.get("original", "")
@@ -903,7 +926,7 @@ def add_home_price_trend_point(
         return
     mapping.setdefault(label, []).append(
         TrendPoint(
-            label=last_update[:7] if re.match(r"\d{4}-\d{2}", last_update) else wayback_kst(capture["timestamp"])[:7],
+            label=month_label_from_text(last_update) if re.match(r"\d{4}-\d{2}", last_update) else wayback_month_label(capture["timestamp"]),
             value=value,
             source=f"Internet Archive {source_name} 캡처",
             source_url=wayback_url(capture),
@@ -1075,6 +1098,8 @@ def save_snapshot(records: list[ReportRecord], rate: ExchangeRate) -> Path:
     payload = {
         "schema_version": 1,
         "date": TODAY,
+        "basis_date": REPORT_DAY,
+        "run_date": RUN_DAY,
         "query_time": QUERY_TIME,
         "exchange_rate": {
             "value": rate.value,

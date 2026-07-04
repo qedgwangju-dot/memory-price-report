@@ -12,6 +12,7 @@ OpenAI API를 사용하지 않습니다. 스크립트가 직접 접근 가능한
 
 - 실행 시간: 매일 오전 6:30 KST
 - GitHub Actions cron: `30 21 * * *` UTC
+- 기준일: 실행일의 익일. 전년 대비값과 이미지 기준일은 이 익일 기준으로 계산합니다.
 - 보고서 파일: `reports/memory_price_report_YYYY-MM-DD.md`
 - 이미지 요약판: `reports/memory_price_summary_YYYY-MM-DD.png`
 - 전년 비교용 검증 스냅샷: `reports/snapshots/memory_price_snapshot_YYYY-MM-DD.json`
