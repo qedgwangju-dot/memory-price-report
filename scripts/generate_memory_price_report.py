@@ -44,6 +44,32 @@ IMAGE_TREND_MONTHS = 12
 IMAGE_TREND_POINTS = 4
 RECENT_TREND_THRESHOLD_PCT = 0.5
 STRONG_RECENT_TREND_THRESHOLD_PCT = 20.0
+IMAGE_REQUIRED_ROW_PREFIXES = (
+    "DDR3 칩",
+    "DDR4 칩",
+    "DDR5 칩",
+    "DRAM 계약가",
+    "NAND 웨이퍼",
+    "NAND 계약가",
+    "PC-client OEM SSD 계약가",
+    "SSD street price",
+    "소매 메모리",
+    "소매 HDD",
+    "소매 SSD",
+)
+IMAGE_REQUIRED_TREND_PREFIXES = (
+    "DDR3 칩",
+    "DDR4 칩",
+    "DDR5 칩",
+    "DRAM 계약가",
+    "NAND 웨이퍼",
+    "NAND 계약가",
+    "소매 메모리",
+    "소매 HDD",
+    "소매 SSD",
+)
+MIN_IMAGE_ROWS = len(IMAGE_REQUIRED_ROW_PREFIXES)
+MIN_IMAGE_TREND_ROWS = len(IMAGE_REQUIRED_TREND_PREFIXES)
 MONTH_NAMES = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 DRAMEXCHANGE_HOME = "https://www.dramexchange.com/"
@@ -1175,6 +1201,7 @@ def apply_trend_points(records: list[ReportRecord]) -> None:
     for record in records:
         if record.certainty_status == VERIFIED and record.numeric_value is not None:
             record.trend_points = trend_sources.get(base_label(record), [])
+            record.trend_points.extend(prior_snapshot_trend_points(record, start))
             append_current_trend_point(record)
             record.trend_points = dedupe_trend_points(record.trend_points)
 
@@ -1195,6 +1222,65 @@ def load_snapshot(snapshot_date: date) -> dict[str, dict[str, Any]]:
     if not isinstance(rows, list):
         return {}
     return {str(row.get("label") or ""): row for row in rows if isinstance(row, dict)}
+
+
+def snapshot_dates_before(target_date: date, limit: int = 10) -> list[date]:
+    dates: list[date] = []
+    for path in SNAPSHOT_DIR.glob("memory_price_snapshot_*.json"):
+        match = re.search(r"memory_price_snapshot_(\d{4}-\d{2}-\d{2})\.json$", path.name)
+        if not match:
+            continue
+        try:
+            snapshot_date = datetime.strptime(match.group(1), "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if snapshot_date < target_date:
+            dates.append(snapshot_date)
+    dates.sort(reverse=True)
+    return dates[:limit]
+
+
+def metric_item_signature(last_update: str) -> str:
+    match = re.search(r"항목\s+(.+)$", normalize_text(last_update))
+    return normalize_text(match.group(1)) if match else ""
+
+
+def snapshot_row_matches_metric(record: ReportRecord, row: dict[str, Any]) -> bool:
+    if row.get("certainty_status") != VERIFIED:
+        return False
+    if row.get("value_unit") != record.value_unit:
+        return False
+    current_item = metric_item_signature(record.last_update)
+    snapshot_item = metric_item_signature(str(row.get("last_update") or ""))
+    if current_item and snapshot_item and current_item != snapshot_item:
+        return False
+    return True
+
+
+def prior_snapshot_trend_points(record: ReportRecord, start: date) -> list[TrendPoint]:
+    points: list[TrendPoint] = []
+    for snapshot_date in snapshot_dates_before(TODAY_DATE):
+        row = load_snapshot(snapshot_date).get(base_label(record))
+        if not row or not snapshot_row_matches_metric(record, row):
+            continue
+        for raw_point in row.get("trend_points") or []:
+            if not isinstance(raw_point, dict):
+                continue
+            value = parse_float(raw_point.get("value"))
+            if value is None or value <= 0:
+                continue
+            point = TrendPoint(
+                label=str(raw_point.get("label") or ""),
+                value=value,
+                source=str(raw_point.get("source") or f"{snapshot_date.isoformat()} 검증 스냅샷"),
+                source_url=str(raw_point.get("source_url") or snapshot_path(snapshot_date)),
+                reference=str(raw_point.get("reference") or snapshot_date.isoformat()),
+            )
+            point_date = trend_point_reference_date(point)
+            if point_date is not None and (point_date < start or point_date > TODAY_DATE):
+                continue
+            points.append(point)
+    return points
 
 
 def prior_value_from_snapshot(record: ReportRecord, prior_date: date, prior_rows: dict[str, dict[str, Any]]) -> PriorYearValue | None:
@@ -1754,12 +1840,72 @@ def clean_card_verdict(verdict: object) -> str:
     return str(verdict or "").replace("▲", "").replace("▼", "").replace("→", "").replace("—", "").strip()
 
 
+def record_for_prefix(records: list[ReportRecord], prefix: str) -> ReportRecord | None:
+    return next((record for record in records if record.label.startswith(prefix)), None)
+
+
+def image_trend_coverage(records: list[ReportRecord], card: dict[str, Any]) -> dict[str, Any]:
+    rows = list(card.get("rows") or [])
+    row_by_item = {str(row.get("item")): row for row in rows}
+    required_rows: list[dict[str, Any]] = []
+    required_trends: list[dict[str, Any]] = []
+    issues: list[str] = []
+
+    for prefix in IMAGE_REQUIRED_ROW_PREFIXES:
+        record = record_for_prefix(records, prefix)
+        label = compact_label(record.label) if record else prefix
+        row = row_by_item.get(label)
+        visible = row is not None
+        required_rows.append({"prefix": prefix, "label": label, "visible": visible})
+        if not visible:
+            issues.append(f"required image row missing: {label}")
+
+    for prefix in IMAGE_REQUIRED_TREND_PREFIXES:
+        record = record_for_prefix(records, prefix)
+        label = compact_label(record.label) if record else prefix
+        row = row_by_item.get(label)
+        record_points = len([point for point in (record.trend_points if record else []) if point.value > 0])
+        image_points = len(row.get("series") or []) if row else 0
+        has_series = record_points >= 3 and image_points >= 3
+        required_trends.append(
+            {
+                "prefix": prefix,
+                "label": label,
+                "record_points": record_points,
+                "image_points": image_points,
+                "status": "pass" if has_series else "fail",
+            }
+        )
+        if not has_series:
+            issues.append(f"required trend line missing or too short: {label} record={record_points}, image={image_points}")
+
+    visible_rows = sum(1 for item in required_rows if item["visible"])
+    trend_line_rows = sum(1 for item in required_trends if item["status"] == "pass")
+    if len(rows) < MIN_IMAGE_ROWS or visible_rows < MIN_IMAGE_ROWS:
+        issues.append(f"image row coverage too low: rows={len(rows)}, required_visible={visible_rows}/{MIN_IMAGE_ROWS}")
+    if trend_line_rows < MIN_IMAGE_TREND_ROWS:
+        issues.append(f"image trend-line coverage too low: {trend_line_rows}/{MIN_IMAGE_TREND_ROWS}")
+
+    return {
+        "status": "pass" if not issues else "fail",
+        "visible_rows": visible_rows,
+        "minimum_visible_rows": MIN_IMAGE_ROWS,
+        "trend_line_rows": trend_line_rows,
+        "minimum_trend_line_rows": MIN_IMAGE_TREND_ROWS,
+        "required_rows": required_rows,
+        "required_trends": required_trends,
+        "issues": issues,
+    }
+
+
 def save_audit(records: list[ReportRecord], rate: ExchangeRate, card: dict[str, Any], pcpartpicker_path: Path) -> tuple[Path, Path, str]:
     json_path = AUDIT_DIR / f"memory_price_audit_{TODAY}.json"
     md_path = AUDIT_DIR / f"memory_price_audit_{TODAY}.md"
     issues: list[str] = []
 
     row_by_item = {str(row.get("item")): row for row in card.get("rows", [])}
+    coverage_check = image_trend_coverage(records, card)
+    issues.extend(str(issue) for issue in coverage_check.get("issues") or [])
     row_checks: list[dict[str, Any]] = []
     for record in records:
         label = compact_label(record.label)
@@ -1856,8 +2002,11 @@ def save_audit(records: list[ReportRecord], rate: ExchangeRate, card: dict[str, 
             "yoy_direction_pct": RECENT_TREND_THRESHOLD_PCT,
             "recent_direction_pct": RECENT_TREND_THRESHOLD_PCT,
             "strong_recent_pct": STRONG_RECENT_TREND_THRESHOLD_PCT,
+            "minimum_image_rows": MIN_IMAGE_ROWS,
+            "minimum_image_trend_rows": MIN_IMAGE_TREND_ROWS,
         },
         "checks": {
+            "image_trend_coverage": coverage_check,
             "row_verdicts": row_checks,
             "group_boxes": group_checks,
             "pcpartpicker": pcpartpicker_check,
@@ -1873,6 +2022,11 @@ def save_audit(records: list[ReportRecord], rate: ExchangeRate, card: dict[str, 
         f"- 조회 시각: {QUERY_TIME}",
         f"- 기준일: {TODAY}",
         f"- 이슈 수: {len(issues)}",
+        "",
+        "## 이미지 추세선 커버리지",
+        f"- 필수 표 행: {coverage_check['visible_rows']} / {coverage_check['minimum_visible_rows']}",
+        f"- 필수 추세선 행: {coverage_check['trend_line_rows']} / {coverage_check['minimum_trend_line_rows']}",
+        f"- 상태: {coverage_check['status']}",
         "",
         "## 상단 그룹 박스 검산",
         "| 그룹 | 기대 판정 | 기대 구성 | 이미지 판정 | 이미지 구성 | 상태 |",
@@ -2363,6 +2517,27 @@ def create_card_png(card: dict[str, Any], output_path: Path) -> None:
 
 
 def build_report(records: list[ReportRecord], rate: ExchangeRate, card_path: Path) -> str:
+    def strict_verdict(record: ReportRecord) -> str:
+        return image_yoy_verdict(record) if image_actionable_yoy(record) else "판단 보류"
+
+    def strict_trend(record: ReportRecord) -> str:
+        if image_actionable_yoy(record):
+            recent = recent_direct_change_pct(record)
+            recent_text = "최근 직접구간 직접치 부족" if recent is None else f"최근 직접구간 {pct_text(recent)}"
+            return f"{image_trend_text(record)}, {recent_text}"
+        if image_verified_yoy(record):
+            return f"{image_trend_text(record)}, 시계열 부족"
+        return record.trend
+
+    def strict_items(verdicts: set[str], limit: int) -> list[str]:
+        selected = [record for record in records if strict_verdict(record) in verdicts]
+        selected.sort(key=lambda record: abs(record.yoy_pct or 0), reverse=True)
+        return [
+            f"{base_label(record)} {strict_verdict(record)}"
+            f"({pct_text(record.yoy_pct)} YoY, 최근 {pct_text(recent_direct_change_pct(record))})"
+            for record in selected[:limit]
+        ]
+
     if rate.value is None:
         rate_line = f"USD/KRW: 환율 {UNAVAILABLE} (조회 {rate.query_time}, 출처 {rate.source}, 상태 {rate.status})."
     else:
@@ -2383,19 +2558,21 @@ def build_report(records: list[ReportRecord], rate: ExchangeRate, card_path: Pat
     for record in records:
         lines.append(
             f"| {record.label} | {record.current} | {record.day} | {record.week} | {record.month} | "
-            f"{record.year} | {record.trend} | {record.verdict} |"
+            f"{record.year} | {strict_trend(record)} | {strict_verdict(record)} |"
         )
 
-    summaries = summarize(records)
     yoy_verified = [record for record in records if image_verified_yoy(record)]
+    strict_up = strict_items({"강함", "상승", "회복"}, 6)
+    strict_down = strict_items({"둔화", "약함"}, 6)
+    strict_pending = [base_label(record) for record in records if not image_actionable_yoy(record)]
     lines.extend(
         [
             "",
             "## 3. 상승·하락 요약 4줄",
-            f"상승: {', '.join(summaries['상승'][:6]) if summaries['상승'] else UNAVAILABLE}",
-            f"하락: {', '.join(summaries['하락'][:6]) if summaries['하락'] else UNAVAILABLE}",
+            f"상승: {', '.join(strict_up) if strict_up else UNAVAILABLE}",
+            f"하락/둔화: {', '.join(strict_down) if strict_down else UNAVAILABLE}",
             f"전년: {', '.join(f'{base_label(record)} {pct_text(record.yoy_pct)}' for record in yoy_verified[:6]) if yoy_verified else '전년 직접치 부족'}",
-            f"보류: {', '.join(summaries['보류'][:8]) if summaries['보류'] else '없음'}",
+            f"보류: {', '.join(strict_pending[:8]) if strict_pending else '없음'}",
             "",
             "## 4. 가격표",
             "| 항목 | 현재값 | 조회 시각·출처·상태 | 원문 Last Update | 전월 대비 | 전년 대비 | 추세 |",

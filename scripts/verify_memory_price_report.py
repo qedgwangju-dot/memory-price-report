@@ -24,6 +24,32 @@ VERIFIED = "확인"
 Y_DIRECTION_THRESHOLD_PCT = 0.5
 RECENT_DIRECTION_THRESHOLD_PCT = 0.5
 STRONG_RECENT_THRESHOLD_PCT = 20.0
+IMAGE_REQUIRED_ROW_PREFIXES = (
+    "DDR3 칩",
+    "DDR4 칩",
+    "DDR5 칩",
+    "DRAM 계약가",
+    "NAND 웨이퍼",
+    "NAND 계약가",
+    "PC-client OEM SSD 계약가",
+    "SSD street price",
+    "소매 메모리",
+    "소매 HDD",
+    "소매 SSD",
+)
+IMAGE_REQUIRED_TREND_PREFIXES = (
+    "DDR3 칩",
+    "DDR4 칩",
+    "DDR5 칩",
+    "DRAM 계약가",
+    "NAND 웨이퍼",
+    "NAND 계약가",
+    "소매 메모리",
+    "소매 HDD",
+    "소매 SSD",
+)
+MIN_IMAGE_ROWS = len(IMAGE_REQUIRED_ROW_PREFIXES)
+MIN_IMAGE_TREND_ROWS = len(IMAGE_REQUIRED_TREND_PREFIXES)
 
 
 def read_json(path: Path) -> Any:
@@ -101,6 +127,64 @@ def expected_verdict(record: dict[str, Any]) -> str:
     if recent_pct < -RECENT_DIRECTION_THRESHOLD_PCT:
         return "약함"
     return "보합"
+
+
+def record_for_prefix(records: list[dict[str, Any]], prefix: str) -> dict[str, Any] | None:
+    return next((record for record in records if str(record.get("label") or "").startswith(prefix)), None)
+
+
+def trend_coverage(records: list[dict[str, Any]], audit_rows: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    required_rows: list[dict[str, Any]] = []
+    required_trends: list[dict[str, Any]] = []
+    issues: list[str] = []
+
+    for prefix in IMAGE_REQUIRED_ROW_PREFIXES:
+        record = record_for_prefix(records, prefix)
+        label = image_label(record) if record else prefix
+        audit_row = audit_rows.get(label)
+        visible = bool(audit_row and audit_row.get("visible_in_image_table"))
+        required_rows.append({"prefix": prefix, "label": label, "visible": visible})
+        if not visible:
+            issues.append(f"required image row missing: {label}")
+
+    for prefix in IMAGE_REQUIRED_TREND_PREFIXES:
+        record = record_for_prefix(records, prefix)
+        label = image_label(record) if record else prefix
+        audit_row = audit_rows.get(label)
+        record_points = len(positive_points(record)) if record else 0
+        audit_points = as_number(audit_row.get("trend_points")) if audit_row else None
+        audit_point_count = int(audit_points) if audit_points is not None else 0
+        visible = bool(audit_row and audit_row.get("visible_in_image_table"))
+        has_series = visible and record_points >= 3 and audit_point_count >= 3
+        required_trends.append(
+            {
+                "prefix": prefix,
+                "label": label,
+                "record_points": record_points,
+                "audit_points": audit_point_count,
+                "status": "pass" if has_series else "fail",
+            }
+        )
+        if not has_series:
+            issues.append(f"required trend line missing or too short: {label} record={record_points}, audit={audit_point_count}")
+
+    visible_rows = sum(1 for item in required_rows if item["visible"])
+    trend_line_rows = sum(1 for item in required_trends if item["status"] == "pass")
+    if visible_rows < MIN_IMAGE_ROWS:
+        issues.append(f"image row coverage too low: {visible_rows}/{MIN_IMAGE_ROWS}")
+    if trend_line_rows < MIN_IMAGE_TREND_ROWS:
+        issues.append(f"image trend-line coverage too low: {trend_line_rows}/{MIN_IMAGE_TREND_ROWS}")
+
+    return {
+        "status": "pass" if not issues else "fail",
+        "visible_rows": visible_rows,
+        "minimum_visible_rows": MIN_IMAGE_ROWS,
+        "trend_line_rows": trend_line_rows,
+        "minimum_trend_line_rows": MIN_IMAGE_TREND_ROWS,
+        "required_rows": required_rows,
+        "required_trends": required_trends,
+        "issues": issues,
+    }
 
 
 def group_status(records: list[dict[str, Any]], group: str) -> dict[str, str]:
@@ -189,6 +273,8 @@ def verify(date_text: str) -> tuple[Path, Path, str]:
         "yoy_direction_pct": Y_DIRECTION_THRESHOLD_PCT,
         "recent_direction_pct": RECENT_DIRECTION_THRESHOLD_PCT,
         "strong_recent_pct": STRONG_RECENT_THRESHOLD_PCT,
+        "minimum_image_rows": MIN_IMAGE_ROWS,
+        "minimum_image_trend_rows": MIN_IMAGE_TREND_ROWS,
     }
     for key, expected in expected_thresholds.items():
         actual = as_number(thresholds.get(key))
@@ -199,6 +285,21 @@ def verify(date_text: str) -> tuple[Path, Path, str]:
         str(row.get("label")): row
         for row in (((audit.get("checks") or {}).get("row_verdicts")) or [])
     }
+    coverage_check = trend_coverage(records, audit_rows)
+    issues.extend(str(issue) for issue in coverage_check.get("issues") or [])
+    audit_coverage = ((audit.get("checks") or {}).get("image_trend_coverage")) or {}
+    if audit_coverage:
+        if audit_coverage.get("status") != coverage_check["status"]:
+            issues.append(
+                f"audit coverage status mismatch: expected {coverage_check['status']}, got {audit_coverage.get('status')}"
+            )
+        if as_number(audit_coverage.get("visible_rows")) != coverage_check["visible_rows"]:
+            issues.append("audit visible-row coverage mismatch")
+        if as_number(audit_coverage.get("trend_line_rows")) != coverage_check["trend_line_rows"]:
+            issues.append("audit trend-line coverage mismatch")
+    else:
+        issues.append("audit image trend coverage check missing")
+
     row_checks: list[dict[str, Any]] = []
     for record in records:
         label = image_label(record)
@@ -304,6 +405,7 @@ def verify(date_text: str) -> tuple[Path, Path, str]:
             "pcpartpicker": str(pcpartpicker_path.relative_to(ROOT)),
         },
         "checks": {
+            "image_trend_coverage": coverage_check,
             "rows": row_checks,
             "groups": group_checks,
             "image": image_check,
@@ -318,6 +420,11 @@ def verify(date_text: str) -> tuple[Path, Path, str]:
         f"- 상태: {'통과' if status == 'pass' else '실패'}",
         f"- 이슈 수: {len(issues)}",
         f"- 강함 기준 최근 직접 구간: +{STRONG_RECENT_THRESHOLD_PCT:.1f}% 초과",
+        "",
+        "## 이미지 추세선 커버리지",
+        f"- 필수 표 행: {coverage_check['visible_rows']} / {coverage_check['minimum_visible_rows']}",
+        f"- 필수 추세선 행: {coverage_check['trend_line_rows']} / {coverage_check['minimum_trend_line_rows']}",
+        f"- 상태: {coverage_check['status']}",
         "",
         "## 그룹 재계산",
         "| 그룹 | 재계산 판정 | 재계산 구성 | audit 판정 | audit 구성 | 상태 |",
