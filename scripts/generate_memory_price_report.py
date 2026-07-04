@@ -305,6 +305,23 @@ def find_row(rows: list[SourceRow], *keywords: str) -> SourceRow | None:
     return None
 
 
+def find_nand_flash_row(rows: list[SourceRow]) -> SourceRow | None:
+    return (
+        find_row(rows, "TLC", "512Gb")
+        or find_row(rows, "MLC", "64Gb")
+        or find_row(rows, "MLC", "32Gb")
+    )
+
+
+def nand_flash_label(row: SourceRow | None) -> str:
+    if row is None:
+        return "NAND 웨이퍼"
+    match = re.search(r"\b(SLC|MLC|TLC)\s+(\d+Gb)\b", row.item)
+    if not match:
+        return "NAND 웨이퍼 (Flash spot)"
+    return f"NAND 웨이퍼 ({match.group(1)} {match.group(2)})"
+
+
 def record_from_row(label: str, group: str, row: SourceRow | None, rate: ExchangeRate, basis: str) -> ReportRecord:
     if row is None:
         return unavailable_record(label, group, "DRAMeXchange 공개표", DRAMEXCHANGE_HOME, UNAVAILABLE)
@@ -317,7 +334,7 @@ def record_from_row(label: str, group: str, row: SourceRow | None, rate: Exchang
         group=group,
         current=current,
         query_source=f"{QUERY_TIME} · DRAMeXchange 공개표",
-        last_update=row.last_update,
+        last_update=f"{row.last_update}, 항목 {row.item}",
         day=change if basis == "전일" else UNAVAILABLE,
         week=change if basis == "전주" else UNAVAILABLE,
         month=change if basis == "전월" else UNAVAILABLE,
@@ -495,6 +512,7 @@ def build_records(rate: ExchangeRate) -> list[ReportRecord]:
     flash_contract = fetch_home_price("NationalFlashContract")
     pcc_contract = fetch_home_price("PCC")
     ssd_street = fetch_home_price("SSD")
+    nand_flash_row = find_nand_flash_row(flash_rows)
 
     records = [
         record_from_row("DDR3 칩", "DRAM", find_row(dram_rows, "DDR3"), rate, "전일"),
@@ -510,7 +528,7 @@ def build_records(rate: ExchangeRate) -> list[ReportRecord]:
             "DRAMeXchange HomePrice NationalDramContract",
             "https://www.dramexchange.com/Price/NationalContractDramDetail",
         ),
-        record_from_row("NAND 웨이퍼", "NAND/SSD", find_row(flash_rows, "TLC", "512Gb"), rate, "전일"),
+        record_from_row(nand_flash_label(nand_flash_row), "NAND/SSD", nand_flash_row, rate, "전일"),
         record_from_home_price(
             "NAND 계약가",
             "NAND/SSD",
@@ -710,7 +728,7 @@ def fetch_prior_year_dramexchange_spot(prior_date: date) -> dict[str, PriorYearV
         add_prior_from_row(values, "DDR5 칩", find_row(dram_rows, "DDR5", "2Gx8", "4800"), source, archive_url, reference)
         add_prior_from_row(values, "DDR4 모듈", find_row(module_rows, "DDR4", "UDIMM", "16GB", "3200"), source, archive_url, reference)
         add_prior_from_row(values, "DDR5 모듈", find_row(module_rows, "DDR5", "UDIMM", "16GB"), source, archive_url, reference)
-        add_prior_from_row(values, "NAND 웨이퍼", find_row(flash_rows, "TLC", "512Gb"), source, archive_url, reference)
+        add_prior_from_row(values, "NAND 웨이퍼", find_nand_flash_row(flash_rows), source, archive_url, reference)
         return values
     return {}
 
@@ -907,7 +925,7 @@ def fetch_dramexchange_spot_trend_points(start: date, end: date) -> dict[str, li
         add_trend_point(mapping, "DDR5 칩", find_row(dram_rows, "DDR5", "2Gx8", "4800"), capture)
         add_trend_point(mapping, "DDR4 모듈", find_row(module_rows, "DDR4", "UDIMM", "16GB", "3200"), capture)
         add_trend_point(mapping, "DDR5 모듈", find_row(module_rows, "DDR5", "UDIMM", "16GB"), capture)
-        add_trend_point(mapping, "NAND 웨이퍼", find_row(flash_rows, "TLC", "512Gb"), capture)
+        add_trend_point(mapping, "NAND 웨이퍼", find_nand_flash_row(flash_rows), capture)
     return mapping
 
 
@@ -947,21 +965,21 @@ def fetch_dramexchange_home_price_trend_points(start: date, end: date) -> dict[s
     ]
     mapping: dict[str, list[TrendPoint]] = {}
     targets = trend_target_dates(start, end, IMAGE_TREND_POINTS)
+    captures = fetch_cdx_captures(
+        "www.dramexchange.com/Home/HomePrice*",
+        start - timedelta(days=45),
+        end + timedelta(days=45),
+        800,
+    )
     for label, source_key, field, keywords, source_name in specs:
         seen: set[str] = set()
+        source_captures = [
+            capture
+            for capture in captures
+            if f"source={source_key.lower()}" in capture.get("original", "").lower()
+        ]
         for target in targets:
-            captures = fetch_cdx_captures(
-                "www.dramexchange.com/Home/HomePrice*",
-                target - timedelta(days=45),
-                target + timedelta(days=45),
-                80,
-            )
-            source_captures = [
-                capture
-                for capture in captures
-                if f"source={source_key.lower()}" in capture.get("original", "").lower()
-            ]
-            for capture in sorted_captures_by_distance(source_captures, target)[:2]:
+            for capture in sorted_captures_by_distance(source_captures, target)[:4]:
                 key = capture.get("timestamp", "") + capture.get("original", "")
                 if key and key in seen:
                     continue
@@ -1020,7 +1038,7 @@ def dedupe_trend_points(points: list[TrendPoint]) -> list[TrendPoint]:
 def apply_trend_points(records: list[ReportRecord]) -> None:
     start = add_months(TODAY_DATE, -IMAGE_TREND_MONTHS)
     trend_sources: dict[str, list[TrendPoint]] = {}
-    for fetcher in (fetch_dramexchange_spot_trend_points,):
+    for fetcher in (fetch_dramexchange_spot_trend_points, fetch_dramexchange_home_price_trend_points):
         try:
             for label, points in fetcher(start, TODAY_DATE).items():
                 trend_sources.setdefault(label, []).extend(points)
@@ -1094,6 +1112,59 @@ def apply_yoy(records: list[ReportRecord]) -> None:
         record.yoy_source_url = prior.source_url
         record.yoy_reference = prior.reference
         record.year = f"전년 대비 {pct_text(record.yoy_pct)} · 전년값 {prior.reference} · 출처 {prior.source}"
+
+
+def trend_point_reference_date(point: TrendPoint) -> date | None:
+    match = re.search(r"\d{4}-\d{2}-\d{2}", point.reference or "")
+    if match:
+        try:
+            return datetime.strptime(match.group(0), "%Y-%m-%d").date()
+        except ValueError:
+            pass
+    month = month_index(point.label)
+    if month is None:
+        return None
+    year = month // 12
+    month_number = month % 12 + 1
+    return date(year, month_number, min(TODAY_DATE.day, 28))
+
+
+def trend_point_matches_prior(point: TrendPoint, prior_date: date) -> bool:
+    point_date = trend_point_reference_date(point)
+    if point_date is None:
+        return False
+    same_month = point_date.year == prior_date.year and point_date.month == prior_date.month
+    return same_month or abs((point_date - prior_date).days) <= STALE_REFERENCE_DAYS
+
+
+def apply_yoy_from_trend_points(records: list[ReportRecord]) -> None:
+    prior_date = previous_year_date(TODAY_DATE)
+    current_label = TODAY_DATE.strftime("%y-%m")
+    for record in records:
+        if record.yoy_status == VERIFIED:
+            continue
+        if record.certainty_status != VERIFIED or record.numeric_value is None:
+            continue
+        candidates = [
+            point
+            for point in record.trend_points
+            if point.value > 0 and point.label != current_label and trend_point_matches_prior(point, prior_date)
+        ]
+        if not candidates:
+            continue
+        prior_point = min(
+            candidates,
+            key=lambda point: abs(((trend_point_reference_date(point) or prior_date) - prior_date).days),
+        )
+        record.yoy_pct = ((record.numeric_value / prior_point.value) - 1) * 100
+        record.yoy_status = VERIFIED
+        record.yoy_source = prior_point.source
+        record.yoy_source_url = prior_point.source_url
+        record.yoy_reference = prior_point.reference
+        record.year = (
+            f"전년 대비 {pct_text(record.yoy_pct)} · 전년값 {prior_point.reference} · "
+            f"출처 {prior_point.source}"
+        )
 
 
 def save_snapshot(records: list[ReportRecord], rate: ExchangeRate) -> Path:
@@ -1176,6 +1247,9 @@ def summarize(records: list[ReportRecord]) -> dict[str, list[str]]:
 
 
 def compact_label(label: str) -> str:
+    nand_match = re.search(r"NAND 웨이퍼 \((SLC|MLC|TLC) (\d+Gb)\)", label)
+    if nand_match:
+        return f"NAND {nand_match.group(1)}{nand_match.group(2)}"
     base = label.split(" (", 1)[0]
     replacements = {
         "DDR3 칩": "DDR3",
@@ -1331,6 +1405,20 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
     def image_group_direction(group: str) -> str:
         return group_yoy_direction(records, group, require_series=True)
 
+    def row_source_status(record: ReportRecord, has_series: bool, verified_yoy: bool, series_count: int) -> str:
+        if has_series:
+            return f"{compact_trend_source(record)} {series_count}점 확인"
+        base = base_label(record)
+        if base in {"DDR4 모듈", "DDR5 모듈"}:
+            return "DX 사양불일치"
+        if base == "PC-client OEM SSD 계약가":
+            return "DX 원문지연"
+        if base == "SSD street price":
+            return "DX 전년부족"
+        if verified_yoy:
+            return f"{compact_yoy_source(record)} 전년만"
+        return f"{compact_source(record)} 시계열부족"
+
     def box(label: str, group: str) -> dict[str, str]:
         direction = image_group_direction(group)
         status = {"강함": "상승", "약함": "하락", "보합": "보합"}.get(direction, "보류")
@@ -1382,13 +1470,7 @@ def build_card_data(records: list[ReportRecord], rate: ExchangeRate, conclusion:
         symbol = "▲ " if display_verdict == "강함" else "▼ " if display_verdict == "약함" else "— " if display_verdict == "보합" else ""
         series = row_series(record)
         has_series = len(series) >= 3
-        source_status = (
-            f"{compact_trend_source(record)} {len(series)}점 확인"
-            if has_series
-            else f"{compact_yoy_source(record)} 전년만"
-            if verified_yoy
-            else f"{compact_source(record)} 시계열부족"
-        )
+        source_status = row_source_status(record, has_series, verified_yoy, len(series))
         rows.append(
             {
                 "item": compact_label(record.label),
@@ -1942,6 +2024,7 @@ def main() -> None:
     records = build_records(rate)
     apply_yoy(records)
     apply_trend_points(records)
+    apply_yoy_from_trend_points(records)
 
     report_path = REPORTS_DIR / f"memory_price_report_{TODAY}.md"
     card_path = REPORTS_DIR / f"memory_price_summary_{TODAY}.png"
