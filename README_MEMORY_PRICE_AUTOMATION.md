@@ -16,6 +16,7 @@ OpenAI API를 사용하지 않습니다. 스크립트가 직접 접근 가능한
 - 보고서 파일: `reports/memory_price_report_YYYY-MM-DD.md`
 - 이미지 요약판: `reports/memory_price_summary_YYYY-MM-DD.png`
 - 전년 비교용 검증 스냅샷: `reports/snapshots/memory_price_snapshot_YYYY-MM-DD.json`
+- PCPartPicker 보조 그래프 메타데이터: `reports/pcpartpicker/pcpartpicker_trends_YYYY-MM-DD.json`
 - 수동 실행: GitHub Actions 화면에서 `Memory price report` 워크플로우의 `Run workflow`
 
 ## 주요 직접 조회 소스
@@ -24,10 +25,12 @@ OpenAI API를 사용하지 않습니다. 스크립트가 직접 접근 가능한
 - DRAM/NAND/SSD 공개 가격: DRAMeXchange 홈페이지와 공개 `HomePrice` JSON
 - 소매 가격: Danawa `prod.danawa.com` 가격비교 상품 페이지
 - 전년 비교값: Internet Archive의 DRAMeXchange 공개 페이지/JSON 캡처, Danawa 24개월 가격추이 API, 저장소 검증 스냅샷
+- 보조 추세 그래프: PCPartPicker Price Trends. HTML에서 그래프 제목, PNG URL, 그래프 기준일만 저장하며 원시 숫자 시계열은 노출되지 않으므로 최신값, 전년 대비 계산, 이미지 판정에는 사용하지 않습니다.
 
 ## 기준
 
 - 모델 기억, 과거 보고서, 검색 스니펫, 추정값, 보간값은 사용하지 않습니다.
 - 같은 출처에서 직접 확인되지 않은 비교값은 계산하지 않습니다.
 - 조회 실패, 지연 데이터, 출처 간 불일치, 접근 제한은 `확인 불가` 또는 `지연/불일치 있음`으로 남깁니다.
+- PCPartPicker PNG 그래프를 픽셀로 읽어 만든 근사값은 숫자 최신값이나 판정값으로 쓰지 않습니다.
 - OpenAI API 키나 GitHub Secret은 필요 없습니다.

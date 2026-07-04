@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urljoin
 from zoneinfo import ZoneInfo
 
 import requests
@@ -19,6 +20,8 @@ REPORTS_DIR = ROOT / "reports"
 REPORTS_DIR.mkdir(exist_ok=True)
 SNAPSHOT_DIR = REPORTS_DIR / "snapshots"
 SNAPSHOT_DIR.mkdir(exist_ok=True)
+PCPARTPICKER_DIR = REPORTS_DIR / "pcpartpicker"
+PCPARTPICKER_DIR.mkdir(exist_ok=True)
 
 KST = ZoneInfo("Asia/Seoul")
 RUN_AT = datetime.now(KST)
@@ -45,6 +48,23 @@ YAHOO_USDKRW = "https://query1.finance.yahoo.com/v8/finance/chart/USDKRW=X?range
 DANAWA_PRICE_HISTORY = "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php"
 WAYBACK_CDX = "https://web.archive.org/cdx"
 WAYBACK_AVAILABLE = "https://archive.org/wayback/available"
+PCPARTPICKER_TREND_PAGES = {
+    "memory": "https://pcpartpicker.com/trends/price/memory/",
+    "storage": "https://pcpartpicker.com/trends/price/internal-hard-drive/",
+}
+PCPARTPICKER_SELECTED_IDS = {
+    "ram.ddr4.3200.2x16384",
+    "ram.ddr4.3200.2x32768",
+    "ram.ddr5.5600.2x16384",
+    "ram.ddr5.5600.2x32768",
+    "storage.hdd350.8000",
+    "storage.ssdm2nvme.1000",
+    "storage.ssdm2nvme.2000",
+}
+PCPARTPICKER_HEADERS = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Referer": "https://pcpartpicker.com/trends/",
+}
 
 DANAWA_PRODUCTS = {
     "소매 메모리": {
@@ -226,6 +246,107 @@ def safe_get(
                 time.sleep(1.5 * (attempt + 1))
     assert last_error is not None
     raise last_error
+
+
+def absolute_url(url: str) -> str:
+    return urljoin("https://pcpartpicker.com/", url.strip())
+
+
+def pcpartpicker_image_date(url: str) -> str:
+    match = re.search(r"/trends/(\d{4})\.(\d{2})\.(\d{2})\.", url)
+    if not match:
+        return UNAVAILABLE
+    return f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
+
+
+def fetch_pcpartpicker_trends() -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "schema_version": 1,
+        "query_time": QUERY_TIME,
+        "source": "PCPartPicker Price Trends",
+        "status": UNAVAILABLE,
+        "numeric_value_policy": (
+            "PCPartPicker Trends HTML exposes rendered PNG chart URLs and titles, "
+            "not raw numeric time-series values. Pixel-digitized chart values are "
+            "not used as latest values, YoY inputs, or verdict inputs."
+        ),
+        "pages": [],
+        "selected": [],
+        "all_images": [],
+    }
+    all_images: list[dict[str, Any]] = []
+
+    for category, url in PCPARTPICKER_TREND_PAGES.items():
+        page_info: dict[str, Any] = {
+            "category": category,
+            "url": url,
+            "query_time": QUERY_TIME,
+            "collection_method": "webpage HTML parsed for h3/img chart metadata",
+            "status": UNAVAILABLE,
+            "notes": [],
+            "items": [],
+        }
+        try:
+            response = safe_get(url, headers=PCPARTPICKER_HEADERS)
+            soup = BeautifulSoup(response.text, "html.parser")
+            notes: list[str] = []
+            for paragraph in soup.find_all("p"):
+                text = normalize_text(paragraph.get_text(" ", strip=True))
+                if "Thick black lines" in text or "Amazon pricing" in text:
+                    notes.append(text)
+            page_info["notes"] = list(dict.fromkeys(notes))[:4]
+
+            for heading in soup.find_all("h3", id=True):
+                image = heading.find_next("img")
+                image_src = image.get("src") if image else None
+                if not image_src:
+                    continue
+                image_url = absolute_url(str(image_src))
+                reference_date = pcpartpicker_image_date(image_url)
+                item = {
+                    "category": category,
+                    "id": str(heading.get("id")),
+                    "title": normalize_text(heading.get_text(" ", strip=True)),
+                    "source": "PCPartPicker Price Trends",
+                    "source_url": f"{url}#{heading.get('id')}",
+                    "query_time": QUERY_TIME,
+                    "collection_method": "webpage HTML h3/img chart metadata",
+                    "reference_date_time": reference_date,
+                    "status": VERIFIED,
+                    "image_url": image_url,
+                    "image_reference_date": reference_date,
+                    "alt": normalize_text(image.get("alt", "")),
+                    "numeric_series_status": "raw numeric time series not exposed in page HTML",
+                }
+                page_info["items"].append(item)
+                all_images.append(item)
+
+            page_info["status"] = VERIFIED if page_info["items"] else UNAVAILABLE
+        except Exception as exc:
+            page_info["status"] = f"{UNAVAILABLE}: {exc.__class__.__name__}"
+            page_info["error"] = str(exc)
+        payload["pages"].append(page_info)
+
+    selected = [item for item in all_images if item["id"] in PCPARTPICKER_SELECTED_IDS]
+    failed_pages = [page for page in payload["pages"] if page["status"] != VERIFIED]
+    if all_images and failed_pages:
+        payload["status"] = f"{DELAYED_OR_CONFLICT}: partial PCPartPicker fetch"
+    elif all_images:
+        payload["status"] = VERIFIED
+    payload["all_images"] = all_images
+    payload["selected"] = selected
+    payload["image_count"] = len(all_images)
+    payload["selected_count"] = len(selected)
+    return payload
+
+
+def save_pcpartpicker_trends() -> Path:
+    path = PCPARTPICKER_DIR / f"pcpartpicker_trends_{TODAY}.json"
+    path.write_text(
+        json.dumps(fetch_pcpartpicker_trends(), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return path
 
 
 def query_usdkrw() -> ExchangeRate:
@@ -2037,10 +2158,12 @@ def main() -> None:
     create_card_png(card, card_path)
     report_path.write_text(build_report(records, rate, card_path), encoding="utf-8")
     snapshot = save_snapshot(records, rate)
+    pcpartpicker_path = save_pcpartpicker_trends()
 
     print(f"Wrote {report_path.relative_to(ROOT)}")
     print(f"Wrote {card_path.relative_to(ROOT)}")
     print(f"Wrote {snapshot.relative_to(ROOT)}")
+    print(f"Wrote {pcpartpicker_path.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":
