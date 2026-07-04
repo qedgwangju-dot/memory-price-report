@@ -43,6 +43,7 @@ REQUEST_RETRIES = 1
 IMAGE_TREND_MONTHS = 12
 IMAGE_TREND_POINTS = 4
 RECENT_TREND_THRESHOLD_PCT = 0.5
+STRONG_RECENT_TREND_THRESHOLD_PCT = 20.0
 MONTH_NAMES = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 DRAMEXCHANGE_HOME = "https://www.dramexchange.com/"
@@ -1491,8 +1492,10 @@ def image_yoy_verdict(record: ReportRecord) -> str:
         return "판단 보류"
     yoy_pct = record.yoy_pct or 0
     if yoy_pct > RECENT_TREND_THRESHOLD_PCT:
-        if recent_pct > RECENT_TREND_THRESHOLD_PCT:
+        if recent_pct > STRONG_RECENT_TREND_THRESHOLD_PCT:
             return "강함"
+        if recent_pct > RECENT_TREND_THRESHOLD_PCT:
+            return "상승"
         return "둔화"
     if yoy_pct < -RECENT_TREND_THRESHOLD_PCT:
         if recent_pct > RECENT_TREND_THRESHOLD_PCT:
@@ -1571,8 +1574,10 @@ def group_yoy_direction(records: list[ReportRecord], group: str, require_series:
         return "판단 보류"
     recent_avg = sum(recent_values) / len(recent_values)
     if yoy_avg > RECENT_TREND_THRESHOLD_PCT:
-        if recent_avg > RECENT_TREND_THRESHOLD_PCT:
+        if recent_avg > STRONG_RECENT_TREND_THRESHOLD_PCT:
             return "강함"
+        if recent_avg > RECENT_TREND_THRESHOLD_PCT:
+            return "상승"
         return "둔화"
     if yoy_avg < -RECENT_TREND_THRESHOLD_PCT:
         if recent_avg > RECENT_TREND_THRESHOLD_PCT:
@@ -1770,9 +1775,9 @@ def save_audit(records: list[ReportRecord], rate: ExchangeRate, card: dict[str, 
             if not image_actionable_yoy(record):
                 row_status = "fail"
                 issues.append(f"strong verdict without direct YoY/series: {label}")
-            elif (record.yoy_pct or 0) <= RECENT_TREND_THRESHOLD_PCT or (recent_pct or 0) <= RECENT_TREND_THRESHOLD_PCT:
+            elif (record.yoy_pct or 0) <= RECENT_TREND_THRESHOLD_PCT or (recent_pct or 0) <= STRONG_RECENT_TREND_THRESHOLD_PCT:
                 row_status = "fail"
-                issues.append(f"strong verdict without YoY+recent confirmation: {label}")
+                issues.append(f"strong verdict without YoY+strong recent confirmation: {label}")
         row_checks.append(
             {
                 "label": label,
@@ -1847,6 +1852,11 @@ def save_audit(records: list[ReportRecord], rate: ExchangeRate, card: dict[str, 
         "query_time": QUERY_TIME,
         "status": status,
         "exchange_rate_status": rate.status,
+        "thresholds": {
+            "yoy_direction_pct": RECENT_TREND_THRESHOLD_PCT,
+            "recent_direction_pct": RECENT_TREND_THRESHOLD_PCT,
+            "strong_recent_pct": STRONG_RECENT_TREND_THRESHOLD_PCT,
+        },
         "checks": {
             "row_verdicts": row_checks,
             "group_boxes": group_checks,

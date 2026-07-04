@@ -3,9 +3,14 @@
   "date": "2026-07-05",
   "basis_date": "2026-07-05",
   "run_date": "2026-07-04",
-  "query_time": "2026-07-04 15:09 KST",
+  "query_time": "2026-07-04 15:28 KST",
   "status": "pass",
   "exchange_rate_status": "확인",
+  "thresholds": {
+    "yoy_direction_pct": 0.5,
+    "recent_direction_pct": 0.5,
+    "strong_recent_pct": 20.0
+  },
   "checks": {
     "row_verdicts": [
       {
@@ -43,8 +48,8 @@
         "yoy_pct": 667.8019085225403,
         "trend_points": 4,
         "recent_direct_change_pct": 17.646910530163606,
-        "expected_image_verdict": "강함",
-        "actual_image_verdict": "강함",
+        "expected_image_verdict": "상승",
+        "actual_image_verdict": "상승",
         "status": "pass"
       },
       {
@@ -160,8 +165,8 @@
         "yoy_pct": 144.98537400752193,
         "trend_points": 14,
         "recent_direct_change_pct": 2.403982619707845,
-        "expected_image_verdict": "강함",
-        "actual_image_verdict": "강함",
+        "expected_image_verdict": "상승",
+        "actual_image_verdict": "상승",
         "status": "pass"
       },
       {
@@ -173,8 +178,8 @@
         "yoy_pct": 150.96624419626053,
         "trend_points": 14,
         "recent_direct_change_pct": 1.2632911392405077,
-        "expected_image_verdict": "강함",
-        "actual_image_verdict": "강함",
+        "expected_image_verdict": "상승",
+        "actual_image_verdict": "상승",
         "status": "pass"
       }
     ],
@@ -182,9 +187,9 @@
       {
         "group": "DRAM",
         "expected_status": "혼재",
-        "expected_basis": "강3 둔1 보류2",
+        "expected_basis": "강2 상1 둔1 보류2",
         "actual_status": "혼재",
-        "actual_basis": "강3 둔1 보류2",
+        "actual_basis": "강2 상1 둔1 보류2",
         "status": "pass"
       },
       {
@@ -198,9 +203,9 @@
       {
         "group": "소매",
         "expected_status": "혼재",
-        "expected_basis": "강2 둔1",
+        "expected_basis": "상2 둔1",
         "actual_status": "혼재",
-        "actual_basis": "강2 둔1",
+        "actual_basis": "상2 둔1",
         "status": "pass"
       }
     ],
