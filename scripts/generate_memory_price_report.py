@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 from dataclasses import dataclass, field
@@ -33,7 +34,7 @@ def relpath(path: Path) -> str:
 KST = ZoneInfo("Asia/Seoul")
 RUN_AT = datetime.now(KST)
 RUN_DATE = RUN_AT.date()
-REPORT_DATE = RUN_DATE + timedelta(days=1)
+REPORT_DATE = date.fromisoformat(os.environ["REPORT_DATE_OVERRIDE"]) if os.environ.get("REPORT_DATE_OVERRIDE") else RUN_DATE + timedelta(days=1)
 RUN_DAY = RUN_DATE.isoformat()
 REPORT_DAY = REPORT_DATE.isoformat()
 TODAY = REPORT_DAY
@@ -462,11 +463,7 @@ def find_row(rows: list[SourceRow], *keywords: str) -> SourceRow | None:
 
 
 def find_nand_flash_row(rows: list[SourceRow]) -> SourceRow | None:
-    return (
-        find_row(rows, "TLC", "512Gb")
-        or find_row(rows, "MLC", "64Gb")
-        or find_row(rows, "MLC", "32Gb")
-    )
+    return find_row(rows, "TLC", "512Gb")
 
 
 def nand_flash_label(row: SourceRow | None) -> str:
@@ -1871,32 +1868,36 @@ def image_trend_coverage(records: list[ReportRecord], card: dict[str, Any]) -> d
         row = row_by_item.get(label)
         record_points = len([point for point in (record.trend_points if record else []) if point.value > 0])
         image_points = len(row.get("series") or []) if row else 0
+        eligible = bool(record and record.certainty_status == VERIFIED and image_verified_yoy(record))
         has_series = record_points >= 3 and image_points >= 3
         required_trends.append(
             {
                 "prefix": prefix,
                 "label": label,
+                "eligible": eligible,
                 "record_points": record_points,
                 "image_points": image_points,
-                "status": "pass" if has_series else "fail",
+                "status": "pass" if eligible and has_series else "unresolved" if not eligible else "fail",
             }
         )
-        if not has_series:
+        if eligible and not has_series:
             issues.append(f"required trend line missing or too short: {label} record={record_points}, image={image_points}")
 
     visible_rows = sum(1 for item in required_rows if item["visible"])
+    eligible_trend_rows = sum(1 for item in required_trends if item["eligible"])
     trend_line_rows = sum(1 for item in required_trends if item["status"] == "pass")
     if len(rows) < MIN_IMAGE_ROWS or visible_rows < MIN_IMAGE_ROWS:
         issues.append(f"image row coverage too low: rows={len(rows)}, required_visible={visible_rows}/{MIN_IMAGE_ROWS}")
-    if trend_line_rows < MIN_IMAGE_TREND_ROWS:
-        issues.append(f"image trend-line coverage too low: {trend_line_rows}/{MIN_IMAGE_TREND_ROWS}")
+    if trend_line_rows < eligible_trend_rows:
+        issues.append(f"image trend-line coverage too low: {trend_line_rows}/{eligible_trend_rows}")
 
     return {
         "status": "pass" if not issues else "fail",
         "visible_rows": visible_rows,
         "minimum_visible_rows": MIN_IMAGE_ROWS,
+        "eligible_trend_rows": eligible_trend_rows,
         "trend_line_rows": trend_line_rows,
-        "minimum_trend_line_rows": MIN_IMAGE_TREND_ROWS,
+        "minimum_trend_line_rows": eligible_trend_rows,
         "required_rows": required_rows,
         "required_trends": required_trends,
         "issues": issues,

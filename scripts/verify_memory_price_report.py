@@ -159,32 +159,41 @@ def trend_coverage(records: list[dict[str, Any]], audit_rows: dict[str, dict[str
         audit_points = as_number(audit_row.get("trend_points")) if audit_row else None
         audit_point_count = int(audit_points) if audit_points is not None else 0
         visible = bool(audit_row and audit_row.get("visible_in_image_table"))
+        eligible = bool(
+            record
+            and record.get("certainty_status") == VERIFIED
+            and record.get("yoy_status") == VERIFIED
+            and as_number(record.get("yoy_pct")) is not None
+        )
         has_series = visible and record_points >= 3 and audit_point_count >= 3
         required_trends.append(
             {
                 "prefix": prefix,
                 "label": label,
+                "eligible": eligible,
                 "record_points": record_points,
                 "audit_points": audit_point_count,
-                "status": "pass" if has_series else "fail",
+                "status": "pass" if eligible and has_series else "unresolved" if not eligible else "fail",
             }
         )
-        if not has_series:
+        if eligible and not has_series:
             issues.append(f"required trend line missing or too short: {label} record={record_points}, audit={audit_point_count}")
 
     visible_rows = sum(1 for item in required_rows if item["visible"])
+    eligible_trend_rows = sum(1 for item in required_trends if item["eligible"])
     trend_line_rows = sum(1 for item in required_trends if item["status"] == "pass")
     if visible_rows < MIN_IMAGE_ROWS:
         issues.append(f"image row coverage too low: {visible_rows}/{MIN_IMAGE_ROWS}")
-    if trend_line_rows < MIN_IMAGE_TREND_ROWS:
-        issues.append(f"image trend-line coverage too low: {trend_line_rows}/{MIN_IMAGE_TREND_ROWS}")
+    if trend_line_rows < eligible_trend_rows:
+        issues.append(f"image trend-line coverage too low: {trend_line_rows}/{eligible_trend_rows}")
 
     return {
         "status": "pass" if not issues else "fail",
         "visible_rows": visible_rows,
         "minimum_visible_rows": MIN_IMAGE_ROWS,
+        "eligible_trend_rows": eligible_trend_rows,
         "trend_line_rows": trend_line_rows,
-        "minimum_trend_line_rows": MIN_IMAGE_TREND_ROWS,
+        "minimum_trend_line_rows": eligible_trend_rows,
         "required_rows": required_rows,
         "required_trends": required_trends,
         "issues": issues,

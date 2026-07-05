@@ -2,8 +2,8 @@
   "schema_version": 1,
   "date": "2026-07-06",
   "basis_date": "2026-07-06",
-  "run_date": "2026-07-05",
-  "query_time": "2026-07-05 17:30 KST",
+  "run_date": "2026-07-06",
+  "query_time": "2026-07-06 08:33 KST",
   "status": "pass",
   "exchange_rate_status": "확인",
   "thresholds": {
@@ -18,8 +18,9 @@
       "status": "pass",
       "visible_rows": 11,
       "minimum_visible_rows": 11,
-      "trend_line_rows": 9,
-      "minimum_trend_line_rows": 9,
+      "eligible_trend_rows": 8,
+      "trend_line_rows": 8,
+      "minimum_trend_line_rows": 8,
       "required_rows": [
         {
           "prefix": "DDR3 칩",
@@ -43,7 +44,7 @@
         },
         {
           "prefix": "NAND 웨이퍼",
-          "label": "NAND MLC64Gb",
+          "label": "NAND 웨이퍼",
           "visible": true
         },
         {
@@ -81,6 +82,7 @@
         {
           "prefix": "DDR3 칩",
           "label": "DDR3",
+          "eligible": true,
           "record_points": 6,
           "image_points": 6,
           "status": "pass"
@@ -88,6 +90,7 @@
         {
           "prefix": "DDR4 칩",
           "label": "DDR4",
+          "eligible": true,
           "record_points": 6,
           "image_points": 6,
           "status": "pass"
@@ -95,6 +98,7 @@
         {
           "prefix": "DDR5 칩",
           "label": "DDR5",
+          "eligible": true,
           "record_points": 6,
           "image_points": 6,
           "status": "pass"
@@ -102,20 +106,23 @@
         {
           "prefix": "DRAM 계약가",
           "label": "DRAM 계약",
+          "eligible": true,
           "record_points": 4,
           "image_points": 4,
           "status": "pass"
         },
         {
           "prefix": "NAND 웨이퍼",
-          "label": "NAND MLC64Gb",
-          "record_points": 4,
-          "image_points": 4,
-          "status": "pass"
+          "label": "NAND 웨이퍼",
+          "eligible": false,
+          "record_points": 0,
+          "image_points": 0,
+          "status": "unresolved"
         },
         {
           "prefix": "NAND 계약가",
           "label": "NAND",
+          "eligible": true,
           "record_points": 4,
           "image_points": 4,
           "status": "pass"
@@ -123,6 +130,7 @@
         {
           "prefix": "소매 메모리",
           "label": "소매 메모리",
+          "eligible": true,
           "record_points": 14,
           "image_points": 14,
           "status": "pass"
@@ -130,6 +138,7 @@
         {
           "prefix": "소매 HDD",
           "label": "소매 HDD",
+          "eligible": true,
           "record_points": 14,
           "image_points": 14,
           "status": "pass"
@@ -137,6 +146,7 @@
         {
           "prefix": "소매 SSD",
           "label": "소매 SSD",
+          "eligible": true,
           "record_points": 14,
           "image_points": 14,
           "status": "pass"
@@ -224,16 +234,16 @@
         "status": "pass"
       },
       {
-        "label": "NAND MLC64Gb",
+        "label": "NAND 웨이퍼",
         "group": "NAND/SSD",
         "visible_in_image_table": true,
-        "certainty_status": "확인",
-        "yoy_status": "확인",
-        "yoy_pct": 411.9408242338852,
-        "trend_points": 4,
-        "recent_direct_change_pct": 227.5267605633803,
-        "expected_image_verdict": "강함",
-        "actual_image_verdict": "강함",
+        "certainty_status": "확인 불가",
+        "yoy_status": "현재 직접치 부족",
+        "yoy_pct": null,
+        "trend_points": 0,
+        "recent_direct_change_pct": null,
+        "expected_image_verdict": "보류",
+        "actual_image_verdict": "보류",
         "status": "pass"
       },
       {
@@ -307,9 +317,9 @@
         "visible_in_image_table": true,
         "certainty_status": "확인",
         "yoy_status": "확인",
-        "yoy_pct": 150.96624419626053,
+        "yoy_pct": 150.90977537959594,
         "trend_points": 14,
-        "recent_direct_change_pct": 1.2632911392405077,
+        "recent_direct_change_pct": 1.2405063291139218,
         "expected_image_verdict": "상승",
         "actual_image_verdict": "상승",
         "status": "pass"
@@ -327,9 +337,9 @@
       {
         "group": "NAND/SSD",
         "expected_status": "일부 상승",
-        "expected_basis": "강2 보류2",
+        "expected_basis": "강1 보류3",
         "actual_status": "일부 상승",
-        "actual_basis": "강2 보류2",
+        "actual_basis": "강1 보류3",
         "status": "pass"
       },
       {
@@ -345,9 +355,9 @@
       "status": "pass",
       "path": "reports/pcpartpicker/pcpartpicker_trends_2026-07-06.json",
       "numeric_values_used_for_verdict": false,
-      "fetch_status": "확인 불가",
-      "image_count": 0,
-      "selected_count": 0,
+      "fetch_status": "확인",
+      "image_count": 30,
+      "selected_count": 7,
       "numeric_value_policy": "PCPartPicker Trends HTML exposes rendered PNG chart URLs and titles, not raw numeric time-series values. Pixel-digitized chart values are not used as latest values, YoY inputs, or verdict inputs."
     }
   },
