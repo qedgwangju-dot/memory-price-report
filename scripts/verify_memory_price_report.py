@@ -56,6 +56,10 @@ def read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def relpath(path: Path) -> str:
+    return path.relative_to(ROOT).as_posix()
+
+
 def as_number(value: object) -> float | None:
     if isinstance(value, (int, float)):
         return float(value)
@@ -255,7 +259,7 @@ def verify(date_text: str) -> tuple[Path, Path, str]:
     required_files = [report_path, image_path, snapshot_path, audit_path, pcpartpicker_path]
     for path in required_files:
         if not path.exists():
-            issues.append(f"missing file: {path.relative_to(ROOT)}")
+            issues.append(f"missing file: {relpath(path)}")
 
     snapshot = read_json(snapshot_path) if snapshot_path.exists() else {"records": []}
     audit = read_json(audit_path) if audit_path.exists() else {}
@@ -367,7 +371,7 @@ def verify(date_text: str) -> tuple[Path, Path, str]:
             }
         )
 
-    image_check: dict[str, Any] = {"path": str(image_path.relative_to(ROOT)), "status": "fail"}
+    image_check: dict[str, Any] = {"path": relpath(image_path), "status": "fail"}
     if image_path.exists():
         image_check.update(image_nonblank(image_path))
         image_check["status"] = "pass" if image_check.get("nonblank") else "fail"
@@ -398,11 +402,11 @@ def verify(date_text: str) -> tuple[Path, Path, str]:
         "issues": issues,
         "thresholds": expected_thresholds,
         "files": {
-            "report": str(report_path.relative_to(ROOT)),
-            "image": str(image_path.relative_to(ROOT)),
-            "snapshot": str(snapshot_path.relative_to(ROOT)),
-            "audit": str(audit_path.relative_to(ROOT)),
-            "pcpartpicker": str(pcpartpicker_path.relative_to(ROOT)),
+            "report": relpath(report_path),
+            "image": relpath(image_path),
+            "snapshot": relpath(snapshot_path),
+            "audit": relpath(audit_path),
+            "pcpartpicker": relpath(pcpartpicker_path),
         },
         "checks": {
             "image_trend_coverage": coverage_check,
@@ -461,10 +465,10 @@ def main() -> int:
     parser.add_argument("--date", default=DEFAULT_DATE, help="Report date in YYYY-MM-DD format")
     args = parser.parse_args()
     json_path, md_path, status = verify(args.date)
-    print(f"Wrote {json_path.relative_to(ROOT)}")
-    print(f"Wrote {md_path.relative_to(ROOT)}")
+    print(f"Wrote {relpath(json_path)}")
+    print(f"Wrote {relpath(md_path)}")
     if status != "pass":
-        print(f"Cross-check failed. See {md_path.relative_to(ROOT)}", file=sys.stderr)
+        print(f"Cross-check failed. See {relpath(md_path)}", file=sys.stderr)
         return 1
     return 0
 

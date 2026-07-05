@@ -25,6 +25,11 @@ PCPARTPICKER_DIR.mkdir(exist_ok=True)
 AUDIT_DIR = REPORTS_DIR / "audits"
 AUDIT_DIR.mkdir(exist_ok=True)
 
+
+def relpath(path: Path) -> str:
+    return path.relative_to(ROOT).as_posix()
+
+
 KST = ZoneInfo("Asia/Seoul")
 RUN_AT = datetime.now(KST)
 RUN_DATE = RUN_AT.date()
@@ -1967,7 +1972,7 @@ def save_audit(records: list[ReportRecord], rate: ExchangeRate, card: dict[str, 
 
     pcpartpicker_check: dict[str, Any] = {
         "status": "pass",
-        "path": str(pcpartpicker_path.relative_to(ROOT)),
+        "path": relpath(pcpartpicker_path),
         "numeric_values_used_for_verdict": False,
     }
     try:
@@ -2633,14 +2638,14 @@ def main() -> None:
     pcpartpicker_path = save_pcpartpicker_trends()
     audit_json_path, audit_md_path, audit_status = save_audit(records, rate, card, pcpartpicker_path)
 
-    print(f"Wrote {report_path.relative_to(ROOT)}")
-    print(f"Wrote {card_path.relative_to(ROOT)}")
-    print(f"Wrote {snapshot.relative_to(ROOT)}")
-    print(f"Wrote {pcpartpicker_path.relative_to(ROOT)}")
-    print(f"Wrote {audit_json_path.relative_to(ROOT)}")
-    print(f"Wrote {audit_md_path.relative_to(ROOT)}")
+    print(f"Wrote {relpath(report_path)}")
+    print(f"Wrote {relpath(card_path)}")
+    print(f"Wrote {relpath(snapshot)}")
+    print(f"Wrote {relpath(pcpartpicker_path)}")
+    print(f"Wrote {relpath(audit_json_path)}")
+    print(f"Wrote {relpath(audit_md_path)}")
     if audit_status != "pass":
-        raise RuntimeError(f"Audit failed. See {audit_md_path.relative_to(ROOT)}")
+        raise RuntimeError(f"Audit failed. See {relpath(audit_md_path)}")
 
 
 if __name__ == "__main__":
