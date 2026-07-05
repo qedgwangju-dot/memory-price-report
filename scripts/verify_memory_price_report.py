@@ -200,6 +200,59 @@ def trend_coverage(records: list[dict[str, Any]], audit_rows: dict[str, dict[str
     }
 
 
+def provenance_check(records: list[dict[str, Any]], query_time: str) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    issues: list[str] = []
+    for record in records:
+        label = image_label(record)
+        row_issues: list[str] = []
+        certainty_status = str(record.get("certainty_status") or "")
+        yoy_status = str(record.get("yoy_status") or "")
+        query_source = str(record.get("query_source") or "")
+        source_url = str(record.get("source_url") or "")
+        last_update = str(record.get("last_update") or "")
+        current = str(record.get("current") or "")
+        if query_time and query_time not in query_source:
+            row_issues.append("missing query time in source")
+        if not last_update:
+            row_issues.append("missing source reference/update text")
+        if certainty_status == VERIFIED:
+            if not source_url.startswith("http"):
+                row_issues.append("missing source URL")
+            if as_number(record.get("numeric_value")) is None:
+                row_issues.append("verified current value missing numeric value")
+            if current in {"확인 불가", "지연/불일치 있음", ""}:
+                row_issues.append("verified current value has unresolved display")
+        elif certainty_status not in {"확인 불가", "지연/불일치 있음"}:
+            row_issues.append(f"unexpected certainty status: {certainty_status}")
+        if yoy_status == VERIFIED:
+            if as_number(record.get("yoy_pct")) is None:
+                row_issues.append("verified YoY missing numeric percent")
+            if not str(record.get("yoy_source") or ""):
+                row_issues.append("verified YoY missing source")
+            if not str(record.get("yoy_source_url") or ""):
+                row_issues.append("verified YoY missing source URL")
+            if not str(record.get("yoy_reference") or ""):
+                row_issues.append("verified YoY missing reference")
+        elif not yoy_status:
+            row_issues.append("missing YoY status")
+        if row_issues:
+            issues.extend(f"{label}: {issue}" for issue in row_issues)
+        rows.append(
+            {
+                "label": label,
+                "certainty_status": certainty_status,
+                "query_source": query_source,
+                "source_url": source_url,
+                "last_update": last_update,
+                "yoy_status": yoy_status,
+                "status": "fail" if row_issues else "pass",
+                "issues": row_issues,
+            }
+        )
+    return {"status": "pass" if not issues else "fail", "rows": rows, "issues": issues}
+
+
 def group_status(records: list[dict[str, Any]], group: str) -> dict[str, str]:
     counts = {
         "강함": 0,
@@ -313,6 +366,17 @@ def verify(date_text: str) -> tuple[Path, Path, str]:
     else:
         issues.append("audit image trend coverage check missing")
 
+    provenance = provenance_check(records, str(snapshot.get("query_time") or ""))
+    issues.extend(str(issue) for issue in provenance.get("issues") or [])
+    audit_provenance = ((audit.get("checks") or {}).get("source_provenance")) or {}
+    if audit_provenance:
+        if audit_provenance.get("status") != provenance["status"]:
+            issues.append(
+                f"audit provenance status mismatch: expected {provenance['status']}, got {audit_provenance.get('status')}"
+            )
+    else:
+        issues.append("audit source provenance check missing")
+
     row_checks: list[dict[str, Any]] = []
     for record in records:
         label = image_label(record)
@@ -419,6 +483,7 @@ def verify(date_text: str) -> tuple[Path, Path, str]:
         },
         "checks": {
             "image_trend_coverage": coverage_check,
+            "source_provenance": provenance,
             "rows": row_checks,
             "groups": group_checks,
             "image": image_check,
@@ -438,6 +503,10 @@ def verify(date_text: str) -> tuple[Path, Path, str]:
         f"- 필수 표 행: {coverage_check['visible_rows']} / {coverage_check['minimum_visible_rows']}",
         f"- 필수 추세선 행: {coverage_check['trend_line_rows']} / {coverage_check['minimum_trend_line_rows']}",
         f"- 상태: {coverage_check['status']}",
+        "",
+        "## 최신값 출처 검산",
+        f"- 상태: {provenance['status']}",
+        f"- 이슈 수: {len(provenance['issues'])}",
         "",
         "## 그룹 재계산",
         "| 그룹 | 재계산 판정 | 재계산 구성 | audit 판정 | audit 구성 | 상태 |",

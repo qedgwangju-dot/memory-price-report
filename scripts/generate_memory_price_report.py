@@ -1904,6 +1904,56 @@ def image_trend_coverage(records: list[ReportRecord], card: dict[str, Any]) -> d
     }
 
 
+def source_provenance_checks(records: list[ReportRecord]) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    issues: list[str] = []
+    for record in records:
+        label = compact_label(record.label)
+        row_issues: list[str] = []
+        if QUERY_TIME not in record.query_source:
+            row_issues.append("missing query time in source")
+        if not record.last_update:
+            row_issues.append("missing source reference/update text")
+        if record.certainty_status == VERIFIED:
+            if not record.source_url.startswith("http"):
+                row_issues.append("missing source URL")
+            if record.numeric_value is None:
+                row_issues.append("verified current value missing numeric value")
+            if record.current in {UNAVAILABLE, DELAYED_OR_CONFLICT, ""}:
+                row_issues.append("verified current value has unresolved display")
+        elif record.certainty_status not in {UNAVAILABLE, DELAYED_OR_CONFLICT}:
+            row_issues.append(f"unexpected certainty status: {record.certainty_status}")
+        if record.yoy_status == VERIFIED:
+            if record.yoy_pct is None:
+                row_issues.append("verified YoY missing numeric percent")
+            if not record.yoy_source:
+                row_issues.append("verified YoY missing source")
+            if not record.yoy_source_url:
+                row_issues.append("verified YoY missing source URL")
+            if not record.yoy_reference:
+                row_issues.append("verified YoY missing reference")
+        elif not record.yoy_status:
+            row_issues.append("missing YoY status")
+        if row_issues:
+            issues.extend(f"{label}: {issue}" for issue in row_issues)
+        rows.append(
+            {
+                "label": label,
+                "certainty_status": record.certainty_status,
+                "query_source": record.query_source,
+                "source_url": record.source_url,
+                "last_update": record.last_update,
+                "yoy_status": record.yoy_status,
+                "yoy_source": record.yoy_source,
+                "yoy_source_url": record.yoy_source_url,
+                "yoy_reference": record.yoy_reference,
+                "status": "fail" if row_issues else "pass",
+                "issues": row_issues,
+            }
+        )
+    return {"status": "pass" if not issues else "fail", "rows": rows, "issues": issues}
+
+
 def save_audit(records: list[ReportRecord], rate: ExchangeRate, card: dict[str, Any], pcpartpicker_path: Path) -> tuple[Path, Path, str]:
     json_path = AUDIT_DIR / f"memory_price_audit_{TODAY}.json"
     md_path = AUDIT_DIR / f"memory_price_audit_{TODAY}.md"
@@ -1912,6 +1962,8 @@ def save_audit(records: list[ReportRecord], rate: ExchangeRate, card: dict[str, 
     row_by_item = {str(row.get("item")): row for row in card.get("rows", [])}
     coverage_check = image_trend_coverage(records, card)
     issues.extend(str(issue) for issue in coverage_check.get("issues") or [])
+    provenance_check = source_provenance_checks(records)
+    issues.extend(str(issue) for issue in provenance_check.get("issues") or [])
     row_checks: list[dict[str, Any]] = []
     for record in records:
         label = compact_label(record.label)
@@ -2013,6 +2065,7 @@ def save_audit(records: list[ReportRecord], rate: ExchangeRate, card: dict[str, 
         },
         "checks": {
             "image_trend_coverage": coverage_check,
+            "source_provenance": provenance_check,
             "row_verdicts": row_checks,
             "group_boxes": group_checks,
             "pcpartpicker": pcpartpicker_check,
@@ -2033,6 +2086,10 @@ def save_audit(records: list[ReportRecord], rate: ExchangeRate, card: dict[str, 
         f"- 필수 표 행: {coverage_check['visible_rows']} / {coverage_check['minimum_visible_rows']}",
         f"- 필수 추세선 행: {coverage_check['trend_line_rows']} / {coverage_check['minimum_trend_line_rows']}",
         f"- 상태: {coverage_check['status']}",
+        "",
+        "## 최신값 출처 검산",
+        f"- 상태: {provenance_check['status']}",
+        f"- 이슈 수: {len(provenance_check['issues'])}",
         "",
         "## 상단 그룹 박스 검산",
         "| 그룹 | 기대 판정 | 기대 구성 | 이미지 판정 | 이미지 구성 | 상태 |",
