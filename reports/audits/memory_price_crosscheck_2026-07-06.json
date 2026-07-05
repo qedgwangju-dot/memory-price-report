@@ -11,11 +11,11 @@
     "minimum_image_trend_rows": 9
   },
   "files": {
-    "report": "reports\\memory_price_report_2026-07-06.md",
-    "image": "reports\\memory_price_summary_2026-07-06.png",
-    "snapshot": "reports\\snapshots\\memory_price_snapshot_2026-07-06.json",
-    "audit": "reports\\audits\\memory_price_audit_2026-07-06.json",
-    "pcpartpicker": "reports\\pcpartpicker\\pcpartpicker_trends_2026-07-06.json"
+    "report": "reports/memory_price_report_2026-07-06.md",
+    "image": "reports/memory_price_summary_2026-07-06.png",
+    "snapshot": "reports/snapshots/memory_price_snapshot_2026-07-06.json",
+    "audit": "reports/audits/memory_price_audit_2026-07-06.json",
+    "pcpartpicker": "reports/pcpartpicker/pcpartpicker_trends_2026-07-06.json"
   },
   "checks": {
     "image_trend_coverage": {
@@ -320,14 +320,14 @@
       }
     ],
     "image": {
-      "path": "reports\\memory_price_summary_2026-07-06.png",
+      "path": "reports/memory_price_summary_2026-07-06.png",
       "status": "pass",
       "width": 1400,
       "height": 2100,
       "mean": [
-        218.43781054421768,
-        218.41726904761904,
-        216.2858551020408
+        218.2600306122449,
+        218.27259591836736,
+        216.13844421768707
       ],
       "channel_ranges": [
         240,
@@ -338,9 +338,9 @@
     },
     "pcpartpicker": {
       "status": "pass",
-      "fetch_status": "확인",
-      "image_count": 30,
-      "selected_count": 7,
+      "fetch_status": "확인 불가",
+      "image_count": 0,
+      "selected_count": 0,
       "numeric_value_policy": "PCPartPicker Trends HTML exposes rendered PNG chart URLs and titles, not raw numeric time-series values. Pixel-digitized chart values are not used as latest values, YoY inputs, or verdict inputs."
     }
   }

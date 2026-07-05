@@ -3,7 +3,7 @@
   "date": "2026-07-06",
   "basis_date": "2026-07-06",
   "run_date": "2026-07-05",
-  "query_time": "2026-07-05 07:50 KST",
+  "query_time": "2026-07-05 17:30 KST",
   "status": "pass",
   "exchange_rate_status": "확인",
   "thresholds": {
@@ -343,11 +343,11 @@
     ],
     "pcpartpicker": {
       "status": "pass",
-      "path": "reports\\pcpartpicker\\pcpartpicker_trends_2026-07-06.json",
+      "path": "reports/pcpartpicker/pcpartpicker_trends_2026-07-06.json",
       "numeric_values_used_for_verdict": false,
-      "fetch_status": "확인",
-      "image_count": 30,
-      "selected_count": 7,
+      "fetch_status": "확인 불가",
+      "image_count": 0,
+      "selected_count": 0,
       "numeric_value_policy": "PCPartPicker Trends HTML exposes rendered PNG chart URLs and titles, not raw numeric time-series values. Pixel-digitized chart values are not used as latest values, YoY inputs, or verdict inputs."
     }
   },
