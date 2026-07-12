@@ -1,0 +1,752 @@
+{
+  "schema_version": 1,
+  "date": "2026-07-13",
+  "basis_date": "2026-07-13",
+  "run_date": "2026-07-12",
+  "query_time": "2026-07-12 16:16 KST",
+  "exchange_rate": {
+    "value": 1498.87,
+    "source": "Yahoo Finance USDKRW=X",
+    "source_url": "https://finance.yahoo.com/quote/USDKRW=X",
+    "last_update": "2026-07-11 06:06 KST",
+    "status": "확인"
+  },
+  "records": [
+    {
+      "label": "DDR3 칩",
+      "group": "DRAM",
+      "numeric_value": 12.925,
+      "value_unit": "USD",
+      "certainty_status": "확인",
+      "current": "$12.925 (약 19,373원)",
+      "query_source": "2026-07-12 16:16 KST · DRAMeXchange 공개표",
+      "source_url": "https://www.dramexchange.com/Price/Dram_Spot",
+      "last_update": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR3 4Gb 512Mx8 1600/1866",
+      "yoy_pct": 757.0954907161804,
+      "yoy_status": "확인",
+      "yoy_source": "Internet Archive DRAMeXchange 공개표 캡처",
+      "yoy_source_url": "https://web.archive.org/web/20250711080648id_/https://www.dramexchange.com/",
+      "yoy_reference": "캡처 2025-07-11 17:06 KST, 원문 Last Update 별도 없음, 항목 DDR3 4Gb 512Mx8 1600/1866",
+      "trend_points": [
+        {
+          "label": "2025-11",
+          "value": 3.346,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20251104161001id_/https://www.dramexchange.com/",
+          "reference": "캡처 2025-11-05 01:10 KST, 항목 DDR3 4Gb 512Mx8 1600/1866"
+        },
+        {
+          "label": "2026-03",
+          "value": 5.862,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20260304232211id_/https://www.dramexchange.com/",
+          "reference": "캡처 2026-03-05 08:22 KST, 항목 DDR3 4Gb 512Mx8 1600/1866"
+        },
+        {
+          "label": "25-07",
+          "value": 1.508,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20250711080648id_/https://www.dramexchange.com/",
+          "reference": "캡처 2025-07-11 17:06 KST, 항목 DDR3 4Gb 512Mx8 1600/1866"
+        },
+        {
+          "label": "25-11",
+          "value": 3.346,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20251104161001id_/https://www.dramexchange.com/",
+          "reference": "캡처 2025-11-05 01:10 KST, 항목 DDR3 4Gb 512Mx8 1600/1866"
+        },
+        {
+          "label": "26-03",
+          "value": 6.038,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20260306175018id_/https://www.dramexchange.com/",
+          "reference": "캡처 2026-03-07 02:50 KST, 항목 DDR3 4Gb 512Mx8 1600/1866"
+        },
+        {
+          "label": "26-07",
+          "value": 12.925,
+          "source": "2026-07-12 16:16 KST · DRAMeXchange 공개표",
+          "source_url": "https://www.dramexchange.com/Price/Dram_Spot",
+          "reference": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR3 4Gb 512Mx8 1600/1866"
+        }
+      ]
+    },
+    {
+      "label": "DDR4 칩",
+      "group": "DRAM",
+      "numeric_value": 77.625,
+      "value_unit": "USD",
+      "certainty_status": "확인",
+      "current": "$77.625 (약 116,350원)",
+      "query_source": "2026-07-12 16:16 KST · DRAMeXchange 공개표",
+      "source_url": "https://www.dramexchange.com/Price/Dram_Spot",
+      "last_update": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR4 16Gb (2Gx8) 3200",
+      "yoy_pct": 810.6640075082122,
+      "yoy_status": "확인",
+      "yoy_source": "Internet Archive DRAMeXchange 공개표 캡처",
+      "yoy_source_url": "https://web.archive.org/web/20250711080648id_/https://www.dramexchange.com/",
+      "yoy_reference": "캡처 2025-07-11 17:06 KST, 원문 Last Update 별도 없음, 항목 DDR4 16Gb (2Gx8)3200",
+      "trend_points": [
+        {
+          "label": "2025-11",
+          "value": 26.9,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20251104161001id_/https://www.dramexchange.com/",
+          "reference": "캡처 2025-11-05 01:10 KST, 항목 DDR4 16Gb (2Gx8)3200"
+        },
+        {
+          "label": "2026-03",
+          "value": 77.159,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20260304232211id_/https://www.dramexchange.com/",
+          "reference": "캡처 2026-03-05 08:22 KST, 항목 DDR4 16Gb (2Gx8) 3200"
+        },
+        {
+          "label": "25-07",
+          "value": 8.524,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20250711080648id_/https://www.dramexchange.com/",
+          "reference": "캡처 2025-07-11 17:06 KST, 항목 DDR4 16Gb (2Gx8)3200"
+        },
+        {
+          "label": "25-11",
+          "value": 26.9,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20251104161001id_/https://www.dramexchange.com/",
+          "reference": "캡처 2025-11-05 01:10 KST, 항목 DDR4 16Gb (2Gx8)3200"
+        },
+        {
+          "label": "26-03",
+          "value": 77.436,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20260306175018id_/https://www.dramexchange.com/",
+          "reference": "캡처 2026-03-07 02:50 KST, 항목 DDR4 16Gb (2Gx8) 3200"
+        },
+        {
+          "label": "26-07",
+          "value": 77.625,
+          "source": "2026-07-12 16:16 KST · DRAMeXchange 공개표",
+          "source_url": "https://www.dramexchange.com/Price/Dram_Spot",
+          "reference": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR4 16Gb (2Gx8) 3200"
+        }
+      ]
+    },
+    {
+      "label": "DDR5 칩",
+      "group": "DRAM",
+      "numeric_value": 47.8,
+      "value_unit": "USD",
+      "certainty_status": "확인",
+      "current": "$47.800 (약 71,646원)",
+      "query_source": "2026-07-12 16:16 KST · DRAMeXchange 공개표",
+      "source_url": "https://www.dramexchange.com/Price/Dram_Spot",
+      "last_update": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR5 16Gb (2Gx8) 4800/5600",
+      "yoy_pct": 687.9986811737554,
+      "yoy_status": "확인",
+      "yoy_source": "Internet Archive DRAMeXchange 공개표 캡처",
+      "yoy_source_url": "https://web.archive.org/web/20250711080648id_/https://www.dramexchange.com/",
+      "yoy_reference": "캡처 2025-07-11 17:06 KST, 원문 Last Update 별도 없음, 항목 DDR5 16G (2Gx8) 4800/5600",
+      "trend_points": [
+        {
+          "label": "2025-11",
+          "value": 16.125,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20251104161001id_/https://www.dramexchange.com/",
+          "reference": "캡처 2025-11-05 01:10 KST, 항목 DDR5 16G (2Gx8) 4800/5600"
+        },
+        {
+          "label": "2026-03",
+          "value": 39.2,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20260304232211id_/https://www.dramexchange.com/",
+          "reference": "캡처 2026-03-05 08:22 KST, 항목 DDR5 16Gb (2Gx8) 4800/5600"
+        },
+        {
+          "label": "25-07",
+          "value": 6.066,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20250711080648id_/https://www.dramexchange.com/",
+          "reference": "캡처 2025-07-11 17:06 KST, 항목 DDR5 16G (2Gx8) 4800/5600"
+        },
+        {
+          "label": "25-11",
+          "value": 16.125,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20251104161001id_/https://www.dramexchange.com/",
+          "reference": "캡처 2025-11-05 01:10 KST, 항목 DDR5 16G (2Gx8) 4800/5600"
+        },
+        {
+          "label": "26-03",
+          "value": 39.667,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20260306175018id_/https://www.dramexchange.com/",
+          "reference": "캡처 2026-03-07 02:50 KST, 항목 DDR5 16Gb (2Gx8) 4800/5600"
+        },
+        {
+          "label": "26-07",
+          "value": 47.8,
+          "source": "2026-07-12 16:16 KST · DRAMeXchange 공개표",
+          "source_url": "https://www.dramexchange.com/Price/Dram_Spot",
+          "reference": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR5 16Gb (2Gx8) 4800/5600"
+        }
+      ]
+    },
+    {
+      "label": "DDR4 모듈",
+      "group": "DRAM",
+      "numeric_value": 152.0,
+      "value_unit": "USD",
+      "certainty_status": "확인",
+      "current": "$152.000 (약 227,828원)",
+      "query_source": "2026-07-12 16:16 KST · DRAMeXchange 공개표",
+      "source_url": "https://www.dramexchange.com/Price/Module_Spot",
+      "last_update": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR4 UDIMM 16GB 3200",
+      "yoy_pct": null,
+      "yoy_status": "전년 직접치 부족",
+      "yoy_source": "",
+      "yoy_source_url": "",
+      "yoy_reference": "",
+      "trend_points": [
+        {
+          "label": "2026-03",
+          "value": 122.667,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20260304232211id_/https://www.dramexchange.com/",
+          "reference": "캡처 2026-03-05 08:22 KST, 항목 DDR4 UDIMM 16GB 3200"
+        },
+        {
+          "label": "26-03",
+          "value": 122.667,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20260306175018id_/https://www.dramexchange.com/",
+          "reference": "캡처 2026-03-07 02:50 KST, 항목 DDR4 UDIMM 16GB 3200"
+        },
+        {
+          "label": "26-07",
+          "value": 152.0,
+          "source": "2026-07-12 16:16 KST · DRAMeXchange 공개표",
+          "source_url": "https://www.dramexchange.com/Price/Module_Spot",
+          "reference": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR4 UDIMM 16GB 3200"
+        }
+      ]
+    },
+    {
+      "label": "DDR5 모듈",
+      "group": "DRAM",
+      "numeric_value": 209.0,
+      "value_unit": "USD",
+      "certainty_status": "확인",
+      "current": "$209.000 (약 313,264원)",
+      "query_source": "2026-07-12 16:16 KST · DRAMeXchange 공개표",
+      "source_url": "https://www.dramexchange.com/Price/Module_Spot",
+      "last_update": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR5 UDIMM 16GB 4800/5600",
+      "yoy_pct": null,
+      "yoy_status": "전년 직접치 부족",
+      "yoy_source": "",
+      "yoy_source_url": "",
+      "yoy_reference": "",
+      "trend_points": [
+        {
+          "label": "2026-03",
+          "value": 245.0,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20260304232211id_/https://www.dramexchange.com/",
+          "reference": "캡처 2026-03-05 08:22 KST, 항목 DDR5 UDIMM 16GB 4800/5600"
+        },
+        {
+          "label": "26-03",
+          "value": 245.0,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20260306175018id_/https://www.dramexchange.com/",
+          "reference": "캡처 2026-03-07 02:50 KST, 항목 DDR5 UDIMM 16GB 4800/5600"
+        },
+        {
+          "label": "26-07",
+          "value": 209.0,
+          "source": "2026-07-12 16:16 KST · DRAMeXchange 공개표",
+          "source_url": "https://www.dramexchange.com/Price/Module_Spot",
+          "reference": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR5 UDIMM 16GB 4800/5600"
+        }
+      ]
+    },
+    {
+      "label": "DRAM 계약가",
+      "group": "DRAM",
+      "numeric_value": 119.0,
+      "value_unit": "USD",
+      "certainty_status": "확인",
+      "current": "$119.000 (약 178,366원)",
+      "query_source": "2026-07-12 16:16 KST · DRAMeXchange HomePrice NationalDramContract",
+      "source_url": "https://www.dramexchange.com/Price/NationalContractDramDetail",
+      "last_update": "2026-05-29 15:00:00",
+      "yoy_pct": 510.2564102564102,
+      "yoy_status": "확인",
+      "yoy_source": "Internet Archive DRAMeXchange HomePrice NationalDramContract 캡처",
+      "yoy_source_url": "https://web.archive.org/web/20250714063602id_/https://www.dramexchange.com/Home/HomePrice?Source=NationalDramContract&rnd=1726679650000",
+      "yoy_reference": "원문 2025-05-29 16:00:00, 캡처 2025-07-14 15:36 KST",
+      "trend_points": [
+        {
+          "label": "25-05",
+          "value": 19.5,
+          "source": "Internet Archive DRAMeXchange HomePrice NationalDramContract 캡처",
+          "source_url": "https://web.archive.org/web/20250714063602id_/https://www.dramexchange.com/Home/HomePrice?Source=NationalDramContract&rnd=1726679650000",
+          "reference": "원문 2025-05-29 16:00:00, 캡처 2025-07-14 15:36 KST"
+        },
+        {
+          "label": "25-09",
+          "value": 27.0,
+          "source": "Internet Archive DRAMeXchange HomePrice NationalDramContract 캡처",
+          "source_url": "https://web.archive.org/web/20251101032036id_/https://www.dramexchange.com/Home/HomePrice?Source=NationalDramContract&rnd=1761967235000",
+          "reference": "원문 2025-09-30 16:00:00, 캡처 2025-11-01 12:20 KST"
+        },
+        {
+          "label": "26-01",
+          "value": 85.0,
+          "source": "Internet Archive DRAMeXchange HomePrice NationalDramContract 캡처",
+          "source_url": "https://web.archive.org/web/20260304232218id_/https://www.dramexchange.com/Home/HomePrice?Source=NationalDramContract&rnd=1772666536000",
+          "reference": "원문 2026-01-30 14:00:00, 캡처 2026-03-05 08:22 KST"
+        },
+        {
+          "label": "26-07",
+          "value": 119.0,
+          "source": "2026-07-12 16:16 KST · DRAMeXchange HomePrice NationalDramContract",
+          "source_url": "https://www.dramexchange.com/Price/NationalContractDramDetail",
+          "reference": "2026-05-29 15:00:00"
+        }
+      ]
+    },
+    {
+      "label": "NAND 웨이퍼",
+      "group": "NAND/SSD",
+      "numeric_value": null,
+      "value_unit": "",
+      "certainty_status": "확인 불가",
+      "current": "확인 불가",
+      "query_source": "2026-07-12 16:16 KST · DRAMeXchange 공개표",
+      "source_url": "https://www.dramexchange.com/",
+      "last_update": "확인 불가",
+      "yoy_pct": null,
+      "yoy_status": "현재 직접치 부족",
+      "yoy_source": "",
+      "yoy_source_url": "",
+      "yoy_reference": "",
+      "trend_points": []
+    },
+    {
+      "label": "NAND 계약가",
+      "group": "NAND/SSD",
+      "numeric_value": 26.508,
+      "value_unit": "USD",
+      "certainty_status": "확인",
+      "current": "$26.508 (약 39,732원)",
+      "query_source": "2026-07-12 16:16 KST · DRAMeXchange HomePrice NationalFlashContract",
+      "source_url": "https://www.dramexchange.com/Price/NationalContractFlashDetail",
+      "last_update": "2026-05-29 10:00:00",
+      "yoy_pct": 806.8764967499144,
+      "yoy_status": "확인",
+      "yoy_source": "Internet Archive DRAMeXchange HomePrice NationalFlashContract 캡처",
+      "yoy_source_url": "https://web.archive.org/web/20250714063602id_/https://www.dramexchange.com/Home/HomePrice?Source=NationalFlashContract&rnd=1726679673000",
+      "yoy_reference": "원문 2025-05-29 09:00:00, 캡처 2025-07-14 15:36 KST",
+      "trend_points": [
+        {
+          "label": "25-05",
+          "value": 2.923,
+          "source": "Internet Archive DRAMeXchange HomePrice NationalFlashContract 캡처",
+          "source_url": "https://web.archive.org/web/20250714063602id_/https://www.dramexchange.com/Home/HomePrice?Source=NationalFlashContract&rnd=1726679673000",
+          "reference": "원문 2025-05-29 09:00:00, 캡처 2025-07-14 15:36 KST"
+        },
+        {
+          "label": "25-09",
+          "value": 3.785,
+          "source": "Internet Archive DRAMeXchange HomePrice NationalFlashContract 캡처",
+          "source_url": "https://web.archive.org/web/20251101032036id_/https://www.dramexchange.com/Home/HomePrice?Source=NationalFlashContract&rnd=1761967235000",
+          "reference": "원문 2025-09-30 09:00:00, 캡처 2025-11-01 12:20 KST"
+        },
+        {
+          "label": "26-01",
+          "value": 9.458,
+          "source": "Internet Archive DRAMeXchange HomePrice NationalFlashContract 캡처",
+          "source_url": "https://web.archive.org/web/20260304232218id_/https://www.dramexchange.com/Home/HomePrice?Source=NationalFlashContract&rnd=1772666537000",
+          "reference": "원문 2026-01-30 10:00:00, 캡처 2026-03-05 08:22 KST"
+        },
+        {
+          "label": "26-07",
+          "value": 26.508,
+          "source": "2026-07-12 16:16 KST · DRAMeXchange HomePrice NationalFlashContract",
+          "source_url": "https://www.dramexchange.com/Price/NationalContractFlashDetail",
+          "reference": "2026-05-29 10:00:00"
+        }
+      ]
+    },
+    {
+      "label": "PC-client OEM SSD 계약가",
+      "group": "NAND/SSD",
+      "numeric_value": null,
+      "value_unit": "",
+      "certainty_status": "지연/불일치 있음",
+      "current": "지연/불일치 있음",
+      "query_source": "2026-07-12 16:16 KST · DRAMeXchange HomePrice PCC",
+      "source_url": "https://www.dramexchange.com/Price/PCClientOEMSSD",
+      "last_update": "2026-04-27 10:00:00",
+      "yoy_pct": null,
+      "yoy_status": "현재 직접치 부족",
+      "yoy_source": "",
+      "yoy_source_url": "",
+      "yoy_reference": "",
+      "trend_points": []
+    },
+    {
+      "label": "SSD street price",
+      "group": "NAND/SSD",
+      "numeric_value": 219.99,
+      "value_unit": "USD",
+      "certainty_status": "확인",
+      "current": "$219.990 (약 329,736원)",
+      "query_source": "2026-07-12 16:16 KST · DRAMeXchange HomePrice SSD",
+      "source_url": "https://www.dramexchange.com/Price/SSD_Street",
+      "last_update": "2026-06-26 13:00:00",
+      "yoy_pct": null,
+      "yoy_status": "전년 직접치 부족",
+      "yoy_source": "",
+      "yoy_source_url": "",
+      "yoy_reference": "",
+      "trend_points": [
+        {
+          "label": "26-07",
+          "value": 219.99,
+          "source": "2026-07-12 16:16 KST · DRAMeXchange HomePrice SSD",
+          "source_url": "https://www.dramexchange.com/Price/SSD_Street",
+          "reference": "2026-06-26 13:00:00"
+        }
+      ]
+    },
+    {
+      "label": "소매 메모리",
+      "group": "소매",
+      "numeric_value": 769000.0,
+      "value_unit": "KRW",
+      "certainty_status": "확인",
+      "current": "769,000원",
+      "query_source": "2026-07-12 16:16 KST · Danawa prod 가격비교 · 삼성전자 DDR5-5600 32GB",
+      "source_url": "https://prod.danawa.com/info/?pcode=20644043",
+      "last_update": "상품 페이지 직접 조회, 원문 Last Update 별도 없음",
+      "yoy_pct": 435.7018460466736,
+      "yoy_status": "확인",
+      "yoy_source": "Danawa 가격추이 24개월 · 삼성전자 DDR5-5600 32GB",
+      "yoy_source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=20644043",
+      "yoy_reference": "25-07 월간 가격추이",
+      "trend_points": [
+        {
+          "label": "25-07",
+          "value": 143550.0,
+          "source": "Danawa 가격추이 24개월 · 삼성전자 DDR5-5600 32GB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=20644043",
+          "reference": "25-07 월간 가격추이"
+        },
+        {
+          "label": "25-08",
+          "value": 161250.0,
+          "source": "Danawa 가격추이 24개월 · 삼성전자 DDR5-5600 32GB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=20644043",
+          "reference": "25-08 월간 가격추이"
+        },
+        {
+          "label": "25-09",
+          "value": 161150.0,
+          "source": "Danawa 가격추이 24개월 · 삼성전자 DDR5-5600 32GB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=20644043",
+          "reference": "25-09 월간 가격추이"
+        },
+        {
+          "label": "25-10",
+          "value": 173100.0,
+          "source": "Danawa 가격추이 24개월 · 삼성전자 DDR5-5600 32GB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=20644043",
+          "reference": "25-10 월간 가격추이"
+        },
+        {
+          "label": "25-11",
+          "value": 319000.0,
+          "source": "Danawa 가격추이 24개월 · 삼성전자 DDR5-5600 32GB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=20644043",
+          "reference": "25-11 월간 가격추이"
+        },
+        {
+          "label": "25-12",
+          "value": 406770.0,
+          "source": "Danawa 가격추이 24개월 · 삼성전자 DDR5-5600 32GB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=20644043",
+          "reference": "25-12 월간 가격추이"
+        },
+        {
+          "label": "26-01",
+          "value": 561630.0,
+          "source": "Danawa 가격추이 24개월 · 삼성전자 DDR5-5600 32GB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=20644043",
+          "reference": "26-01 월간 가격추이"
+        },
+        {
+          "label": "26-02",
+          "value": 716290.0,
+          "source": "Danawa 가격추이 24개월 · 삼성전자 DDR5-5600 32GB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=20644043",
+          "reference": "26-02 월간 가격추이"
+        },
+        {
+          "label": "26-03",
+          "value": 640000.0,
+          "source": "Danawa 가격추이 24개월 · 삼성전자 DDR5-5600 32GB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=20644043",
+          "reference": "26-03 월간 가격추이"
+        },
+        {
+          "label": "26-04",
+          "value": 659300.0,
+          "source": "Danawa 가격추이 24개월 · 삼성전자 DDR5-5600 32GB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=20644043",
+          "reference": "26-04 월간 가격추이"
+        },
+        {
+          "label": "26-05",
+          "value": 645190.0,
+          "source": "Danawa 가격추이 24개월 · 삼성전자 DDR5-5600 32GB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=20644043",
+          "reference": "26-05 월간 가격추이"
+        },
+        {
+          "label": "26-06",
+          "value": 650000.0,
+          "source": "Danawa 가격추이 24개월 · 삼성전자 DDR5-5600 32GB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=20644043",
+          "reference": "26-06 월간 가격추이"
+        },
+        {
+          "label": "26-07",
+          "value": 769000.0,
+          "source": "2026-07-12 16:16 KST · Danawa prod 가격비교 · 삼성전자 DDR5-5600 32GB",
+          "source_url": "https://prod.danawa.com/info/?pcode=20644043",
+          "reference": "상품 페이지 직접 조회, 원문 Last Update 별도 없음"
+        }
+      ]
+    },
+    {
+      "label": "소매 HDD",
+      "group": "소매",
+      "numeric_value": 469490.0,
+      "value_unit": "KRW",
+      "certainty_status": "확인",
+      "current": "469,490원",
+      "query_source": "2026-07-12 16:16 KST · Danawa prod 가격비교 · Seagate BarraCuda 8TB",
+      "source_url": "https://prod.danawa.com/info/?pcode=5764992",
+      "last_update": "상품 페이지 직접 조회, 원문 Last Update 별도 없음",
+      "yoy_pct": 145.24132887588797,
+      "yoy_status": "확인",
+      "yoy_source": "Danawa 가격추이 24개월 · Seagate BarraCuda 8TB",
+      "yoy_source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=5764992",
+      "yoy_reference": "25-07 월간 가격추이",
+      "trend_points": [
+        {
+          "label": "25-07",
+          "value": 191440.0,
+          "source": "Danawa 가격추이 24개월 · Seagate BarraCuda 8TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=5764992",
+          "reference": "25-07 월간 가격추이"
+        },
+        {
+          "label": "25-08",
+          "value": 203670.0,
+          "source": "Danawa 가격추이 24개월 · Seagate BarraCuda 8TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=5764992",
+          "reference": "25-08 월간 가격추이"
+        },
+        {
+          "label": "25-09",
+          "value": 181890.0,
+          "source": "Danawa 가격추이 24개월 · Seagate BarraCuda 8TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=5764992",
+          "reference": "25-09 월간 가격추이"
+        },
+        {
+          "label": "25-10",
+          "value": 211830.0,
+          "source": "Danawa 가격추이 24개월 · Seagate BarraCuda 8TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=5764992",
+          "reference": "25-10 월간 가격추이"
+        },
+        {
+          "label": "25-11",
+          "value": 237500.0,
+          "source": "Danawa 가격추이 24개월 · Seagate BarraCuda 8TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=5764992",
+          "reference": "25-11 월간 가격추이"
+        },
+        {
+          "label": "25-12",
+          "value": 300210.0,
+          "source": "Danawa 가격추이 24개월 · Seagate BarraCuda 8TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=5764992",
+          "reference": "25-12 월간 가격추이"
+        },
+        {
+          "label": "26-01",
+          "value": 284900.0,
+          "source": "Danawa 가격추이 24개월 · Seagate BarraCuda 8TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=5764992",
+          "reference": "26-01 월간 가격추이"
+        },
+        {
+          "label": "26-02",
+          "value": 322800.0,
+          "source": "Danawa 가격추이 24개월 · Seagate BarraCuda 8TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=5764992",
+          "reference": "26-02 월간 가격추이"
+        },
+        {
+          "label": "26-03",
+          "value": 306801.0,
+          "source": "Danawa 가격추이 24개월 · Seagate BarraCuda 8TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=5764992",
+          "reference": "26-03 월간 가격추이"
+        },
+        {
+          "label": "26-04",
+          "value": 313650.0,
+          "source": "Danawa 가격추이 24개월 · Seagate BarraCuda 8TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=5764992",
+          "reference": "26-04 월간 가격추이"
+        },
+        {
+          "label": "26-05",
+          "value": 369330.0,
+          "source": "Danawa 가격추이 24개월 · Seagate BarraCuda 8TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=5764992",
+          "reference": "26-05 월간 가격추이"
+        },
+        {
+          "label": "26-06",
+          "value": 457990.0,
+          "source": "Danawa 가격추이 24개월 · Seagate BarraCuda 8TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=5764992",
+          "reference": "26-06 월간 가격추이"
+        },
+        {
+          "label": "26-07",
+          "value": 469490.0,
+          "source": "2026-07-12 16:16 KST · Danawa prod 가격비교 · Seagate BarraCuda 8TB",
+          "source_url": "https://prod.danawa.com/info/?pcode=5764992",
+          "reference": "상품 페이지 직접 조회, 원문 Last Update 별도 없음"
+        }
+      ]
+    },
+    {
+      "label": "소매 SSD",
+      "group": "소매",
+      "numeric_value": 399980.0,
+      "value_unit": "KRW",
+      "certainty_status": "확인",
+      "current": "399,980원",
+      "query_source": "2026-07-12 16:16 KST · Danawa prod 가격비교 · Samsung 990 PRO 1TB",
+      "source_url": "https://prod.danawa.com/info/?pcode=18297002",
+      "last_update": "상품 페이지 직접 조회, 원문 Last Update 별도 없음",
+      "yoy_pct": 150.9599698832978,
+      "yoy_status": "확인",
+      "yoy_source": "Danawa 가격추이 24개월 · Samsung 990 PRO 1TB",
+      "yoy_source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=18297002",
+      "yoy_reference": "25-07 월간 가격추이",
+      "trend_points": [
+        {
+          "label": "25-07",
+          "value": 159380.0,
+          "source": "Danawa 가격추이 24개월 · Samsung 990 PRO 1TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=18297002",
+          "reference": "25-07 월간 가격추이"
+        },
+        {
+          "label": "25-08",
+          "value": 129000.0,
+          "source": "Danawa 가격추이 24개월 · Samsung 990 PRO 1TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=18297002",
+          "reference": "25-08 월간 가격추이"
+        },
+        {
+          "label": "25-09",
+          "value": 155400.0,
+          "source": "Danawa 가격추이 24개월 · Samsung 990 PRO 1TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=18297002",
+          "reference": "25-09 월간 가격추이"
+        },
+        {
+          "label": "25-10",
+          "value": 157160.0,
+          "source": "Danawa 가격추이 24개월 · Samsung 990 PRO 1TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=18297002",
+          "reference": "25-10 월간 가격추이"
+        },
+        {
+          "label": "25-11",
+          "value": 172000.0,
+          "source": "Danawa 가격추이 24개월 · Samsung 990 PRO 1TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=18297002",
+          "reference": "25-11 월간 가격추이"
+        },
+        {
+          "label": "25-12",
+          "value": 209900.0,
+          "source": "Danawa 가격추이 24개월 · Samsung 990 PRO 1TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=18297002",
+          "reference": "25-12 월간 가격추이"
+        },
+        {
+          "label": "26-01",
+          "value": 305640.0,
+          "source": "Danawa 가격추이 24개월 · Samsung 990 PRO 1TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=18297002",
+          "reference": "26-01 월간 가격추이"
+        },
+        {
+          "label": "26-02",
+          "value": 357920.0,
+          "source": "Danawa 가격추이 24개월 · Samsung 990 PRO 1TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=18297002",
+          "reference": "26-02 월간 가격추이"
+        },
+        {
+          "label": "26-03",
+          "value": 384990.0,
+          "source": "Danawa 가격추이 24개월 · Samsung 990 PRO 1TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=18297002",
+          "reference": "26-03 월간 가격추이"
+        },
+        {
+          "label": "26-04",
+          "value": 385000.0,
+          "source": "Danawa 가격추이 24개월 · Samsung 990 PRO 1TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=18297002",
+          "reference": "26-04 월간 가격추이"
+        },
+        {
+          "label": "26-05",
+          "value": 384000.0,
+          "source": "Danawa 가격추이 24개월 · Samsung 990 PRO 1TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=18297002",
+          "reference": "26-05 월간 가격추이"
+        },
+        {
+          "label": "26-06",
+          "value": 395000.0,
+          "source": "Danawa 가격추이 24개월 · Samsung 990 PRO 1TB",
+          "source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=18297002",
+          "reference": "26-06 월간 가격추이"
+        },
+        {
+          "label": "26-07",
+          "value": 399980.0,
+          "source": "2026-07-12 16:16 KST · Danawa prod 가격비교 · Samsung 990 PRO 1TB",
+          "source_url": "https://prod.danawa.com/info/?pcode=18297002",
+          "reference": "상품 페이지 직접 조회, 원문 Last Update 별도 없음"
+        }
+      ]
+    }
+  ]
+}
