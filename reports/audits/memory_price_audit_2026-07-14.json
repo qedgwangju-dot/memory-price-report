@@ -1,0 +1,540 @@
+{
+  "schema_version": 1,
+  "date": "2026-07-14",
+  "basis_date": "2026-07-14",
+  "run_date": "2026-07-13",
+  "query_time": "2026-07-13 17:36 KST",
+  "status": "pass",
+  "exchange_rate_status": "확인",
+  "thresholds": {
+    "yoy_direction_pct": 0.5,
+    "recent_direction_pct": 0.5,
+    "strong_recent_pct": 20.0,
+    "minimum_image_rows": 11,
+    "minimum_image_trend_rows": 9
+  },
+  "checks": {
+    "image_trend_coverage": {
+      "status": "pass",
+      "visible_rows": 11,
+      "minimum_visible_rows": 11,
+      "eligible_trend_rows": 6,
+      "trend_line_rows": 6,
+      "minimum_trend_line_rows": 6,
+      "required_rows": [
+        {
+          "prefix": "DDR3 칩",
+          "label": "DDR3",
+          "visible": true
+        },
+        {
+          "prefix": "DDR4 칩",
+          "label": "DDR4",
+          "visible": true
+        },
+        {
+          "prefix": "DDR5 칩",
+          "label": "DDR5",
+          "visible": true
+        },
+        {
+          "prefix": "DRAM 계약가",
+          "label": "DRAM 계약",
+          "visible": true
+        },
+        {
+          "prefix": "NAND 웨이퍼",
+          "label": "NAND 웨이퍼",
+          "visible": true
+        },
+        {
+          "prefix": "NAND 계약가",
+          "label": "NAND",
+          "visible": true
+        },
+        {
+          "prefix": "PC-client OEM SSD 계약가",
+          "label": "OEM SSD",
+          "visible": true
+        },
+        {
+          "prefix": "SSD street price",
+          "label": "SSD street",
+          "visible": true
+        },
+        {
+          "prefix": "소매 메모리",
+          "label": "소매 메모리",
+          "visible": true
+        },
+        {
+          "prefix": "소매 HDD",
+          "label": "소매 HDD",
+          "visible": true
+        },
+        {
+          "prefix": "소매 SSD",
+          "label": "소매 SSD",
+          "visible": true
+        }
+      ],
+      "required_trends": [
+        {
+          "prefix": "DDR3 칩",
+          "label": "DDR3",
+          "eligible": true,
+          "record_points": 6,
+          "image_points": 6,
+          "status": "pass"
+        },
+        {
+          "prefix": "DDR4 칩",
+          "label": "DDR4",
+          "eligible": true,
+          "record_points": 6,
+          "image_points": 6,
+          "status": "pass"
+        },
+        {
+          "prefix": "DDR5 칩",
+          "label": "DDR5",
+          "eligible": true,
+          "record_points": 6,
+          "image_points": 6,
+          "status": "pass"
+        },
+        {
+          "prefix": "DRAM 계약가",
+          "label": "DRAM 계약",
+          "eligible": false,
+          "record_points": 4,
+          "image_points": 4,
+          "status": "unresolved"
+        },
+        {
+          "prefix": "NAND 웨이퍼",
+          "label": "NAND 웨이퍼",
+          "eligible": false,
+          "record_points": 0,
+          "image_points": 0,
+          "status": "unresolved"
+        },
+        {
+          "prefix": "NAND 계약가",
+          "label": "NAND",
+          "eligible": false,
+          "record_points": 4,
+          "image_points": 4,
+          "status": "unresolved"
+        },
+        {
+          "prefix": "소매 메모리",
+          "label": "소매 메모리",
+          "eligible": true,
+          "record_points": 13,
+          "image_points": 13,
+          "status": "pass"
+        },
+        {
+          "prefix": "소매 HDD",
+          "label": "소매 HDD",
+          "eligible": true,
+          "record_points": 13,
+          "image_points": 13,
+          "status": "pass"
+        },
+        {
+          "prefix": "소매 SSD",
+          "label": "소매 SSD",
+          "eligible": true,
+          "record_points": 13,
+          "image_points": 13,
+          "status": "pass"
+        }
+      ],
+      "issues": []
+    },
+    "source_provenance": {
+      "status": "pass",
+      "rows": [
+        {
+          "label": "DDR3",
+          "certainty_status": "확인",
+          "query_source": "2026-07-13 17:36 KST · DRAMeXchange 공개표",
+          "source_url": "https://www.dramexchange.com/Price/Dram_Spot",
+          "last_update": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR3 4Gb 512Mx8 1600/1866",
+          "yoy_status": "확인",
+          "yoy_source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "yoy_source_url": "https://web.archive.org/web/20250717095443id_/https://dramexchange.com/",
+          "yoy_reference": "캡처 2025-07-17 18:54 KST, 원문 Last Update 별도 없음, 항목 DDR3 4Gb 512Mx8 1600/1866",
+          "status": "pass",
+          "issues": []
+        },
+        {
+          "label": "DDR4",
+          "certainty_status": "확인",
+          "query_source": "2026-07-13 17:36 KST · DRAMeXchange 공개표",
+          "source_url": "https://www.dramexchange.com/Price/Dram_Spot",
+          "last_update": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR4 16Gb (2Gx8) 3200",
+          "yoy_status": "확인",
+          "yoy_source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "yoy_source_url": "https://web.archive.org/web/20250717095443id_/https://dramexchange.com/",
+          "yoy_reference": "캡처 2025-07-17 18:54 KST, 원문 Last Update 별도 없음, 항목 DDR4 16Gb (2Gx8)3200",
+          "status": "pass",
+          "issues": []
+        },
+        {
+          "label": "DDR5",
+          "certainty_status": "확인",
+          "query_source": "2026-07-13 17:36 KST · DRAMeXchange 공개표",
+          "source_url": "https://www.dramexchange.com/Price/Dram_Spot",
+          "last_update": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR5 16Gb (2Gx8) 4800/5600",
+          "yoy_status": "확인",
+          "yoy_source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "yoy_source_url": "https://web.archive.org/web/20250717095443id_/https://dramexchange.com/",
+          "yoy_reference": "캡처 2025-07-17 18:54 KST, 원문 Last Update 별도 없음, 항목 DDR5 16G (2Gx8) 4800/5600",
+          "status": "pass",
+          "issues": []
+        },
+        {
+          "label": "DDR4 모듈",
+          "certainty_status": "확인",
+          "query_source": "2026-07-13 17:36 KST · DRAMeXchange 공개표",
+          "source_url": "https://www.dramexchange.com/Price/Module_Spot",
+          "last_update": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR4 UDIMM 16GB 3200",
+          "yoy_status": "전년 직접치 부족",
+          "yoy_source": "",
+          "yoy_source_url": "",
+          "yoy_reference": "",
+          "status": "pass",
+          "issues": []
+        },
+        {
+          "label": "DDR5 모듈",
+          "certainty_status": "확인",
+          "query_source": "2026-07-13 17:36 KST · DRAMeXchange 공개표",
+          "source_url": "https://www.dramexchange.com/Price/Module_Spot",
+          "last_update": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR5 UDIMM 16GB 4800/5600",
+          "yoy_status": "전년 직접치 부족",
+          "yoy_source": "",
+          "yoy_source_url": "",
+          "yoy_reference": "",
+          "status": "pass",
+          "issues": []
+        },
+        {
+          "label": "DRAM 계약",
+          "certainty_status": "확인",
+          "query_source": "2026-07-13 17:36 KST · DRAMeXchange HomePrice NationalDramContract",
+          "source_url": "https://www.dramexchange.com/Price/NationalContractDramDetail",
+          "last_update": "2026-05-29 15:00:00",
+          "yoy_status": "전년 직접치 부족",
+          "yoy_source": "",
+          "yoy_source_url": "",
+          "yoy_reference": "",
+          "status": "pass",
+          "issues": []
+        },
+        {
+          "label": "NAND 웨이퍼",
+          "certainty_status": "확인 불가",
+          "query_source": "2026-07-13 17:36 KST · DRAMeXchange 공개표",
+          "source_url": "https://www.dramexchange.com/",
+          "last_update": "확인 불가",
+          "yoy_status": "현재 직접치 부족",
+          "yoy_source": "",
+          "yoy_source_url": "",
+          "yoy_reference": "",
+          "status": "pass",
+          "issues": []
+        },
+        {
+          "label": "NAND",
+          "certainty_status": "확인",
+          "query_source": "2026-07-13 17:36 KST · DRAMeXchange HomePrice NationalFlashContract",
+          "source_url": "https://www.dramexchange.com/Price/NationalContractFlashDetail",
+          "last_update": "2026-05-29 10:00:00",
+          "yoy_status": "전년 직접치 부족",
+          "yoy_source": "",
+          "yoy_source_url": "",
+          "yoy_reference": "",
+          "status": "pass",
+          "issues": []
+        },
+        {
+          "label": "OEM SSD",
+          "certainty_status": "지연/불일치 있음",
+          "query_source": "2026-07-13 17:36 KST · DRAMeXchange HomePrice PCC",
+          "source_url": "https://www.dramexchange.com/Price/PCClientOEMSSD",
+          "last_update": "2026-04-27 10:00:00",
+          "yoy_status": "현재 직접치 부족",
+          "yoy_source": "",
+          "yoy_source_url": "",
+          "yoy_reference": "",
+          "status": "pass",
+          "issues": []
+        },
+        {
+          "label": "SSD street",
+          "certainty_status": "확인",
+          "query_source": "2026-07-13 17:36 KST · DRAMeXchange HomePrice SSD",
+          "source_url": "https://www.dramexchange.com/Price/SSD_Street",
+          "last_update": "2026-06-26 13:00:00",
+          "yoy_status": "전년 직접치 부족",
+          "yoy_source": "",
+          "yoy_source_url": "",
+          "yoy_reference": "",
+          "status": "pass",
+          "issues": []
+        },
+        {
+          "label": "소매 메모리",
+          "certainty_status": "확인",
+          "query_source": "2026-07-13 17:36 KST · Danawa prod 가격비교 · 삼성전자 DDR5-5600 32GB",
+          "source_url": "https://prod.danawa.com/info/?pcode=20644043",
+          "last_update": "상품 페이지 직접 조회, 원문 Last Update 별도 없음",
+          "yoy_status": "확인",
+          "yoy_source": "Danawa 가격추이 24개월 · 삼성전자 DDR5-5600 32GB",
+          "yoy_source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=20644043",
+          "yoy_reference": "25-07 월간 가격추이",
+          "status": "pass",
+          "issues": []
+        },
+        {
+          "label": "소매 HDD",
+          "certainty_status": "확인",
+          "query_source": "2026-07-13 17:36 KST · Danawa prod 가격비교 · Seagate BarraCuda 8TB",
+          "source_url": "https://prod.danawa.com/info/?pcode=5764992",
+          "last_update": "상품 페이지 직접 조회, 원문 Last Update 별도 없음",
+          "yoy_status": "확인",
+          "yoy_source": "Danawa 가격추이 24개월 · Seagate BarraCuda 8TB",
+          "yoy_source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=5764992",
+          "yoy_reference": "25-07 월간 가격추이",
+          "status": "pass",
+          "issues": []
+        },
+        {
+          "label": "소매 SSD",
+          "certainty_status": "확인",
+          "query_source": "2026-07-13 17:36 KST · Danawa prod 가격비교 · Samsung 990 PRO 1TB",
+          "source_url": "https://prod.danawa.com/info/?pcode=18297002",
+          "last_update": "상품 페이지 직접 조회, 원문 Last Update 별도 없음",
+          "yoy_status": "확인",
+          "yoy_source": "Danawa 가격추이 24개월 · Samsung 990 PRO 1TB",
+          "yoy_source_url": "https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php?productCode=18297002",
+          "yoy_reference": "25-07 월간 가격추이",
+          "status": "pass",
+          "issues": []
+        }
+      ],
+      "issues": []
+    },
+    "row_verdicts": [
+      {
+        "label": "DDR3",
+        "group": "DRAM",
+        "visible_in_image_table": true,
+        "certainty_status": "확인",
+        "yoy_status": "확인",
+        "yoy_pct": 731.1938382541719,
+        "trend_points": 6,
+        "recent_direct_change_pct": 114.47499171911227,
+        "expected_image_verdict": "강함",
+        "actual_image_verdict": "강함",
+        "status": "pass"
+      },
+      {
+        "label": "DDR4",
+        "group": "DRAM",
+        "visible_in_image_table": true,
+        "certainty_status": "확인",
+        "yoy_status": "확인",
+        "yoy_pct": 805.7971014492754,
+        "trend_points": 6,
+        "recent_direct_change_pct": 0.8897670334211405,
+        "expected_image_verdict": "상승",
+        "actual_image_verdict": "상승",
+        "status": "pass"
+      },
+      {
+        "label": "DDR5",
+        "group": "DRAM",
+        "visible_in_image_table": true,
+        "certainty_status": "확인",
+        "yoy_status": "확인",
+        "yoy_pct": 698.7605354486861,
+        "trend_points": 6,
+        "recent_direct_change_pct": 21.846875236342544,
+        "expected_image_verdict": "강함",
+        "actual_image_verdict": "강함",
+        "status": "pass"
+      },
+      {
+        "label": "DDR4 모듈",
+        "group": "DRAM",
+        "visible_in_image_table": false,
+        "certainty_status": "확인",
+        "yoy_status": "전년 직접치 부족",
+        "yoy_pct": null,
+        "trend_points": 3,
+        "recent_direct_change_pct": 25.54313711104046,
+        "expected_image_verdict": "보류",
+        "actual_image_verdict": "not in image table",
+        "status": "pass"
+      },
+      {
+        "label": "DDR5 모듈",
+        "group": "DRAM",
+        "visible_in_image_table": false,
+        "certainty_status": "확인",
+        "yoy_status": "전년 직접치 부족",
+        "yoy_pct": null,
+        "trend_points": 3,
+        "recent_direct_change_pct": -14.693877551020407,
+        "expected_image_verdict": "보류",
+        "actual_image_verdict": "not in image table",
+        "status": "pass"
+      },
+      {
+        "label": "DRAM 계약",
+        "group": "DRAM",
+        "visible_in_image_table": true,
+        "certainty_status": "확인",
+        "yoy_status": "전년 직접치 부족",
+        "yoy_pct": null,
+        "trend_points": 4,
+        "recent_direct_change_pct": 39.99999999999999,
+        "expected_image_verdict": "보류",
+        "actual_image_verdict": "보류",
+        "status": "pass"
+      },
+      {
+        "label": "NAND 웨이퍼",
+        "group": "NAND/SSD",
+        "visible_in_image_table": true,
+        "certainty_status": "확인 불가",
+        "yoy_status": "현재 직접치 부족",
+        "yoy_pct": null,
+        "trend_points": 0,
+        "recent_direct_change_pct": null,
+        "expected_image_verdict": "보류",
+        "actual_image_verdict": "보류",
+        "status": "pass"
+      },
+      {
+        "label": "NAND",
+        "group": "NAND/SSD",
+        "visible_in_image_table": true,
+        "certainty_status": "확인",
+        "yoy_status": "전년 직접치 부족",
+        "yoy_pct": null,
+        "trend_points": 4,
+        "recent_direct_change_pct": 180.27067033199407,
+        "expected_image_verdict": "보류",
+        "actual_image_verdict": "보류",
+        "status": "pass"
+      },
+      {
+        "label": "OEM SSD",
+        "group": "NAND/SSD",
+        "visible_in_image_table": true,
+        "certainty_status": "지연/불일치 있음",
+        "yoy_status": "현재 직접치 부족",
+        "yoy_pct": null,
+        "trend_points": 0,
+        "recent_direct_change_pct": null,
+        "expected_image_verdict": "보류",
+        "actual_image_verdict": "보류",
+        "status": "pass"
+      },
+      {
+        "label": "SSD street",
+        "group": "NAND/SSD",
+        "visible_in_image_table": true,
+        "certainty_status": "확인",
+        "yoy_status": "전년 직접치 부족",
+        "yoy_pct": null,
+        "trend_points": 1,
+        "recent_direct_change_pct": null,
+        "expected_image_verdict": "보류",
+        "actual_image_verdict": "보류",
+        "status": "pass"
+      },
+      {
+        "label": "소매 메모리",
+        "group": "소매",
+        "visible_in_image_table": true,
+        "certainty_status": "확인",
+        "yoy_status": "확인",
+        "yoy_pct": 435.7018460466736,
+        "trend_points": 13,
+        "recent_direct_change_pct": 18.307692307692314,
+        "expected_image_verdict": "상승",
+        "actual_image_verdict": "상승",
+        "status": "pass"
+      },
+      {
+        "label": "소매 HDD",
+        "group": "소매",
+        "visible_in_image_table": true,
+        "certainty_status": "확인",
+        "yoy_status": "확인",
+        "yoy_pct": 66.63184287505224,
+        "trend_points": 13,
+        "recent_direct_change_pct": -30.347824188301054,
+        "expected_image_verdict": "둔화",
+        "actual_image_verdict": "둔화",
+        "status": "pass"
+      },
+      {
+        "label": "소매 SSD",
+        "group": "소매",
+        "visible_in_image_table": true,
+        "certainty_status": "확인",
+        "yoy_status": "확인",
+        "yoy_pct": 150.9599698832978,
+        "trend_points": 13,
+        "recent_direct_change_pct": 1.2607594936708821,
+        "expected_image_verdict": "상승",
+        "actual_image_verdict": "상승",
+        "status": "pass"
+      }
+    ],
+    "group_boxes": [
+      {
+        "group": "DRAM",
+        "expected_status": "일부 상승",
+        "expected_basis": "강2 상1 보류3",
+        "actual_status": "일부 상승",
+        "actual_basis": "강2 상1 보류3",
+        "status": "pass"
+      },
+      {
+        "group": "NAND/SSD",
+        "expected_status": "보류",
+        "expected_basis": "보류4",
+        "actual_status": "보류",
+        "actual_basis": "보류4",
+        "status": "pass"
+      },
+      {
+        "group": "소매",
+        "expected_status": "혼재",
+        "expected_basis": "상2 둔1",
+        "actual_status": "혼재",
+        "actual_basis": "상2 둔1",
+        "status": "pass"
+      }
+    ],
+    "pcpartpicker": {
+      "status": "pass",
+      "path": "reports/pcpartpicker/pcpartpicker_trends_2026-07-14.json",
+      "numeric_values_used_for_verdict": false,
+      "fetch_status": "확인 불가",
+      "image_count": 0,
+      "selected_count": 0,
+      "numeric_value_policy": "PCPartPicker Trends HTML exposes rendered PNG chart URLs and titles, not raw numeric time-series values. Pixel-digitized chart values are not used as latest values, YoY inputs, or verdict inputs."
+    }
+  },
+  "issues": []
+}
