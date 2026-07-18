@@ -1,0 +1,418 @@
+{
+  "schema_version": 1,
+  "date": "2026-07-20",
+  "basis_date": "2026-07-20",
+  "run_date": "2026-07-19",
+  "query_time": "2026-07-19 07:12 KST",
+  "exchange_rate": {
+    "value": 1487.46,
+    "source": "Yahoo Finance USDKRW=X",
+    "source_url": "https://finance.yahoo.com/quote/USDKRW=X",
+    "last_update": "2026-07-18 06:23 KST",
+    "status": "확인"
+  },
+  "records": [
+    {
+      "label": "DDR3 칩",
+      "group": "DRAM",
+      "numeric_value": 13.175,
+      "value_unit": "USD",
+      "certainty_status": "확인",
+      "current": "$13.175 (약 19,597원)",
+      "query_source": "2026-07-19 07:12 KST · DRAMeXchange 공개표",
+      "source_url": "https://www.dramexchange.com/Price/Dram_Spot",
+      "last_update": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR3 4Gb 512Mx8 1600/1866",
+      "yoy_pct": 745.635430038511,
+      "yoy_status": "확인",
+      "yoy_source": "Internet Archive DRAMeXchange 공개표 캡처",
+      "yoy_source_url": "https://web.archive.org/web/20250717095443id_/https://dramexchange.com/",
+      "yoy_reference": "캡처 2025-07-17 18:54 KST, 원문 Last Update 별도 없음, 항목 DDR3 4Gb 512Mx8 1600/1866",
+      "trend_points": [
+        {
+          "label": "2025-11",
+          "value": 3.346,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20251104161001id_/https://www.dramexchange.com/",
+          "reference": "캡처 2025-11-05 01:10 KST, 항목 DDR3 4Gb 512Mx8 1600/1866"
+        },
+        {
+          "label": "2026-03",
+          "value": 5.862,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20260304232211id_/https://www.dramexchange.com/",
+          "reference": "캡처 2026-03-05 08:22 KST, 항목 DDR3 4Gb 512Mx8 1600/1866"
+        },
+        {
+          "label": "25-07",
+          "value": 1.558,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20250717095443id_/https://www.dramexchange.com/",
+          "reference": "캡처 2025-07-17 18:54 KST, 항목 DDR3 4Gb 512Mx8 1600/1866"
+        },
+        {
+          "label": "25-11",
+          "value": 3.346,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20251104161001id_/https://www.dramexchange.com/",
+          "reference": "캡처 2025-11-05 01:10 KST, 항목 DDR3 4Gb 512Mx8 1600/1866"
+        },
+        {
+          "label": "26-03",
+          "value": 6.038,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20260306175018id_/https://www.dramexchange.com/",
+          "reference": "캡처 2026-03-07 02:50 KST, 항목 DDR3 4Gb 512Mx8 1600/1866"
+        },
+        {
+          "label": "26-07",
+          "value": 13.175,
+          "source": "2026-07-19 07:12 KST · DRAMeXchange 공개표",
+          "source_url": "https://www.dramexchange.com/Price/Dram_Spot",
+          "reference": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR3 4Gb 512Mx8 1600/1866"
+        }
+      ]
+    },
+    {
+      "label": "DDR4 칩",
+      "group": "DRAM",
+      "numeric_value": 80.2,
+      "value_unit": "USD",
+      "certainty_status": "확인",
+      "current": "$80.200 (약 119,294원)",
+      "query_source": "2026-07-19 07:12 KST · DRAMeXchange 공개표",
+      "source_url": "https://www.dramexchange.com/Price/Dram_Spot",
+      "last_update": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR4 16Gb (2Gx8) 3200",
+      "yoy_pct": 829.8550724637682,
+      "yoy_status": "확인",
+      "yoy_source": "Internet Archive DRAMeXchange 공개표 캡처",
+      "yoy_source_url": "https://web.archive.org/web/20250717095443id_/https://dramexchange.com/",
+      "yoy_reference": "캡처 2025-07-17 18:54 KST, 원문 Last Update 별도 없음, 항목 DDR4 16Gb (2Gx8)3200",
+      "trend_points": [
+        {
+          "label": "2025-11",
+          "value": 26.9,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20251104161001id_/https://www.dramexchange.com/",
+          "reference": "캡처 2025-11-05 01:10 KST, 항목 DDR4 16Gb (2Gx8)3200"
+        },
+        {
+          "label": "2026-03",
+          "value": 77.159,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20260304232211id_/https://www.dramexchange.com/",
+          "reference": "캡처 2026-03-05 08:22 KST, 항목 DDR4 16Gb (2Gx8) 3200"
+        },
+        {
+          "label": "25-07",
+          "value": 8.625,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20250717095443id_/https://www.dramexchange.com/",
+          "reference": "캡처 2025-07-17 18:54 KST, 항목 DDR4 16Gb (2Gx8)3200"
+        },
+        {
+          "label": "25-11",
+          "value": 26.9,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20251104161001id_/https://www.dramexchange.com/",
+          "reference": "캡처 2025-11-05 01:10 KST, 항목 DDR4 16Gb (2Gx8)3200"
+        },
+        {
+          "label": "26-03",
+          "value": 77.436,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20260306175018id_/https://www.dramexchange.com/",
+          "reference": "캡처 2026-03-07 02:50 KST, 항목 DDR4 16Gb (2Gx8) 3200"
+        },
+        {
+          "label": "26-07",
+          "value": 80.2,
+          "source": "2026-07-19 07:12 KST · DRAMeXchange 공개표",
+          "source_url": "https://www.dramexchange.com/Price/Dram_Spot",
+          "reference": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR4 16Gb (2Gx8) 3200"
+        }
+      ]
+    },
+    {
+      "label": "DDR5 칩",
+      "group": "DRAM",
+      "numeric_value": 49.667,
+      "value_unit": "USD",
+      "certainty_status": "확인",
+      "current": "$49.667 (약 73,878원)",
+      "query_source": "2026-07-19 07:12 KST · DRAMeXchange 공개표",
+      "source_url": "https://www.dramexchange.com/Price/Dram_Spot",
+      "last_update": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR5 16Gb (2Gx8) 4800/5600",
+      "yoy_pct": 720.8064782680548,
+      "yoy_status": "확인",
+      "yoy_source": "Internet Archive DRAMeXchange 공개표 캡처",
+      "yoy_source_url": "https://web.archive.org/web/20250717095443id_/https://dramexchange.com/",
+      "yoy_reference": "캡처 2025-07-17 18:54 KST, 원문 Last Update 별도 없음, 항목 DDR5 16G (2Gx8) 4800/5600",
+      "trend_points": [
+        {
+          "label": "2025-11",
+          "value": 16.125,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20251104161001id_/https://www.dramexchange.com/",
+          "reference": "캡처 2025-11-05 01:10 KST, 항목 DDR5 16G (2Gx8) 4800/5600"
+        },
+        {
+          "label": "2026-03",
+          "value": 39.2,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20260304232211id_/https://www.dramexchange.com/",
+          "reference": "캡처 2026-03-05 08:22 KST, 항목 DDR5 16Gb (2Gx8) 4800/5600"
+        },
+        {
+          "label": "25-07",
+          "value": 6.051,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20250717095443id_/https://www.dramexchange.com/",
+          "reference": "캡처 2025-07-17 18:54 KST, 항목 DDR5 16G (2Gx8) 4800/5600"
+        },
+        {
+          "label": "25-11",
+          "value": 16.125,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20251104161001id_/https://www.dramexchange.com/",
+          "reference": "캡처 2025-11-05 01:10 KST, 항목 DDR5 16G (2Gx8) 4800/5600"
+        },
+        {
+          "label": "26-03",
+          "value": 39.667,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20260306175018id_/https://www.dramexchange.com/",
+          "reference": "캡처 2026-03-07 02:50 KST, 항목 DDR5 16Gb (2Gx8) 4800/5600"
+        },
+        {
+          "label": "26-07",
+          "value": 49.667,
+          "source": "2026-07-19 07:12 KST · DRAMeXchange 공개표",
+          "source_url": "https://www.dramexchange.com/Price/Dram_Spot",
+          "reference": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR5 16Gb (2Gx8) 4800/5600"
+        }
+      ]
+    },
+    {
+      "label": "DDR4 모듈",
+      "group": "DRAM",
+      "numeric_value": 154.0,
+      "value_unit": "USD",
+      "certainty_status": "확인",
+      "current": "$154.000 (약 229,069원)",
+      "query_source": "2026-07-19 07:12 KST · DRAMeXchange 공개표",
+      "source_url": "https://www.dramexchange.com/Price/Module_Spot",
+      "last_update": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR4 UDIMM 16GB 3200",
+      "yoy_pct": null,
+      "yoy_status": "전년 직접치 부족",
+      "yoy_source": "",
+      "yoy_source_url": "",
+      "yoy_reference": "",
+      "trend_points": [
+        {
+          "label": "2026-03",
+          "value": 122.667,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20260304232211id_/https://www.dramexchange.com/",
+          "reference": "캡처 2026-03-05 08:22 KST, 항목 DDR4 UDIMM 16GB 3200"
+        },
+        {
+          "label": "26-03",
+          "value": 122.667,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20260306175018id_/https://www.dramexchange.com/",
+          "reference": "캡처 2026-03-07 02:50 KST, 항목 DDR4 UDIMM 16GB 3200"
+        },
+        {
+          "label": "26-07",
+          "value": 154.0,
+          "source": "2026-07-19 07:12 KST · DRAMeXchange 공개표",
+          "source_url": "https://www.dramexchange.com/Price/Module_Spot",
+          "reference": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR4 UDIMM 16GB 3200"
+        }
+      ]
+    },
+    {
+      "label": "DDR5 모듈",
+      "group": "DRAM",
+      "numeric_value": 209.0,
+      "value_unit": "USD",
+      "certainty_status": "확인",
+      "current": "$209.000 (약 310,879원)",
+      "query_source": "2026-07-19 07:12 KST · DRAMeXchange 공개표",
+      "source_url": "https://www.dramexchange.com/Price/Module_Spot",
+      "last_update": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR5 UDIMM 16GB 4800/5600",
+      "yoy_pct": null,
+      "yoy_status": "전년 직접치 부족",
+      "yoy_source": "",
+      "yoy_source_url": "",
+      "yoy_reference": "",
+      "trend_points": [
+        {
+          "label": "2026-03",
+          "value": 245.0,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20260304232211id_/https://www.dramexchange.com/",
+          "reference": "캡처 2026-03-05 08:22 KST, 항목 DDR5 UDIMM 16GB 4800/5600"
+        },
+        {
+          "label": "26-03",
+          "value": 245.0,
+          "source": "Internet Archive DRAMeXchange 공개표 캡처",
+          "source_url": "https://web.archive.org/web/20260306175018id_/https://www.dramexchange.com/",
+          "reference": "캡처 2026-03-07 02:50 KST, 항목 DDR5 UDIMM 16GB 4800/5600"
+        },
+        {
+          "label": "26-07",
+          "value": 209.0,
+          "source": "2026-07-19 07:12 KST · DRAMeXchange 공개표",
+          "source_url": "https://www.dramexchange.com/Price/Module_Spot",
+          "reference": "홈 공개표, 원문 Last Update 별도 없음, 항목 DDR5 UDIMM 16GB 4800/5600"
+        }
+      ]
+    },
+    {
+      "label": "DRAM 계약가",
+      "group": "DRAM",
+      "numeric_value": null,
+      "value_unit": "",
+      "certainty_status": "지연/불일치 있음",
+      "current": "지연/불일치 있음",
+      "query_source": "2026-07-19 07:12 KST · DRAMeXchange HomePrice NationalDramContract",
+      "source_url": "https://www.dramexchange.com/Price/NationalContractDramDetail",
+      "last_update": "2026-05-29 15:00:00",
+      "yoy_pct": null,
+      "yoy_status": "현재 직접치 부족",
+      "yoy_source": "",
+      "yoy_source_url": "",
+      "yoy_reference": "",
+      "trend_points": []
+    },
+    {
+      "label": "NAND 웨이퍼",
+      "group": "NAND/SSD",
+      "numeric_value": null,
+      "value_unit": "",
+      "certainty_status": "확인 불가",
+      "current": "확인 불가",
+      "query_source": "2026-07-19 07:12 KST · DRAMeXchange 공개표",
+      "source_url": "https://www.dramexchange.com/",
+      "last_update": "확인 불가",
+      "yoy_pct": null,
+      "yoy_status": "현재 직접치 부족",
+      "yoy_source": "",
+      "yoy_source_url": "",
+      "yoy_reference": "",
+      "trend_points": []
+    },
+    {
+      "label": "NAND 계약가",
+      "group": "NAND/SSD",
+      "numeric_value": null,
+      "value_unit": "",
+      "certainty_status": "지연/불일치 있음",
+      "current": "지연/불일치 있음",
+      "query_source": "2026-07-19 07:12 KST · DRAMeXchange HomePrice NationalFlashContract",
+      "source_url": "https://www.dramexchange.com/Price/NationalContractFlashDetail",
+      "last_update": "2026-05-29 10:00:00",
+      "yoy_pct": null,
+      "yoy_status": "현재 직접치 부족",
+      "yoy_source": "",
+      "yoy_source_url": "",
+      "yoy_reference": "",
+      "trend_points": []
+    },
+    {
+      "label": "PC-client OEM SSD 계약가",
+      "group": "NAND/SSD",
+      "numeric_value": null,
+      "value_unit": "",
+      "certainty_status": "지연/불일치 있음",
+      "current": "지연/불일치 있음",
+      "query_source": "2026-07-19 07:12 KST · DRAMeXchange HomePrice PCC",
+      "source_url": "https://www.dramexchange.com/Price/PCClientOEMSSD",
+      "last_update": "2026-04-27 10:00:00",
+      "yoy_pct": null,
+      "yoy_status": "현재 직접치 부족",
+      "yoy_source": "",
+      "yoy_source_url": "",
+      "yoy_reference": "",
+      "trend_points": []
+    },
+    {
+      "label": "SSD street price",
+      "group": "NAND/SSD",
+      "numeric_value": 239.16,
+      "value_unit": "USD",
+      "certainty_status": "확인",
+      "current": "$239.160 (약 355,741원)",
+      "query_source": "2026-07-19 07:12 KST · DRAMeXchange HomePrice SSD",
+      "source_url": "https://www.dramexchange.com/Price/SSD_Street",
+      "last_update": "2026-07-17 10:30:00",
+      "yoy_pct": null,
+      "yoy_status": "전년 직접치 부족",
+      "yoy_source": "",
+      "yoy_source_url": "",
+      "yoy_reference": "",
+      "trend_points": [
+        {
+          "label": "26-07",
+          "value": 239.16,
+          "source": "2026-07-19 07:12 KST · DRAMeXchange HomePrice SSD",
+          "source_url": "https://www.dramexchange.com/Price/SSD_Street",
+          "reference": "2026-07-17 10:30:00"
+        }
+      ]
+    },
+    {
+      "label": "소매 메모리",
+      "group": "소매",
+      "numeric_value": null,
+      "value_unit": "",
+      "certainty_status": "확인 불가",
+      "current": "확인 불가: ConnectionError",
+      "query_source": "2026-07-19 07:12 KST · Danawa prod 가격비교 · 삼성전자 DDR5-5600 32GB",
+      "source_url": "https://prod.danawa.com/info/?pcode=20644043",
+      "last_update": "확인 불가: ConnectionError",
+      "yoy_pct": null,
+      "yoy_status": "현재 직접치 부족",
+      "yoy_source": "",
+      "yoy_source_url": "",
+      "yoy_reference": "",
+      "trend_points": []
+    },
+    {
+      "label": "소매 HDD",
+      "group": "소매",
+      "numeric_value": null,
+      "value_unit": "",
+      "certainty_status": "확인 불가",
+      "current": "확인 불가: ConnectionError",
+      "query_source": "2026-07-19 07:12 KST · Danawa prod 가격비교 · Seagate BarraCuda 8TB",
+      "source_url": "https://prod.danawa.com/info/?pcode=5764992",
+      "last_update": "확인 불가: ConnectionError",
+      "yoy_pct": null,
+      "yoy_status": "현재 직접치 부족",
+      "yoy_source": "",
+      "yoy_source_url": "",
+      "yoy_reference": "",
+      "trend_points": []
+    },
+    {
+      "label": "소매 SSD",
+      "group": "소매",
+      "numeric_value": null,
+      "value_unit": "",
+      "certainty_status": "확인 불가",
+      "current": "확인 불가: ConnectionError",
+      "query_source": "2026-07-19 07:12 KST · Danawa prod 가격비교 · Samsung 990 PRO 1TB",
+      "source_url": "https://prod.danawa.com/info/?pcode=18297002",
+      "last_update": "확인 불가: ConnectionError",
+      "yoy_pct": null,
+      "yoy_status": "현재 직접치 부족",
+      "yoy_source": "",
+      "yoy_source_url": "",
+      "yoy_reference": "",
+      "trend_points": []
+    }
+  ]
+}
