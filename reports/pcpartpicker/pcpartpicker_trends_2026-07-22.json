@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "query_time": "2026-07-21 07:29 KST",
+  "source": "PCPartPicker Price Trends",
+  "status": "확인 불가",
+  "numeric_value_policy": "PCPartPicker Trends HTML exposes rendered PNG chart URLs and titles, not raw numeric time-series values. Pixel-digitized chart values are not used as latest values, YoY inputs, or verdict inputs.",
+  "pages": [
+    {
+      "category": "memory",
+      "url": "https://pcpartpicker.com/trends/price/memory/",
+      "query_time": "2026-07-21 07:29 KST",
+      "collection_method": "webpage HTML parsed for h3/img chart metadata",
+      "status": "확인 불가: HTTPError",
+      "notes": [],
+      "items": [],
+      "error": "403 Client Error: Forbidden for url: https://pcpartpicker.com/trends/price/memory/"
+    },
+    {
+      "category": "storage",
+      "url": "https://pcpartpicker.com/trends/price/internal-hard-drive/",
+      "query_time": "2026-07-21 07:29 KST",
+      "collection_method": "webpage HTML parsed for h3/img chart metadata",
+      "status": "확인 불가: HTTPError",
+      "notes": [],
+      "items": [],
+      "error": "403 Client Error: Forbidden for url: https://pcpartpicker.com/trends/price/internal-hard-drive/"
+    }
+  ],
+  "selected": [],
+  "all_images": [],
+  "image_count": 0,
+  "selected_count": 0
+}
